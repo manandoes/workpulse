@@ -1,0 +1,884 @@
+// AgencyOS Prisma schema.
+//
+// Data model reference: Architecture.md section 4.
+// Multi-tenancy rule (Rules.md section 2): every company-scoped model carries a
+// `companyId` foreign key, and every query filters by it.
+//
+// Models are introduced phase by phase (Phases.md):
+//   Phase 2 - Company, CompanyAccount, Employee
+//   Phase 3 - Department, employee profile fields, reporting lines
+//   Phase 4 - Client, Project, ProjectMember
+//   Phase 5 - Task, Comment, Attachment
+//   Phase 6 - Company.weeklyCapacityHours, Employee.workloadPercent
+//   Phase 7 - Request, Notification, Attachment widened to cover requests
+//   Phase 8 - PerformanceRecord, Goal, Feedback
+//   Phase 9 - Alert  <- current
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Roles that a CompanyAccount can hold (PRD.md section 9).
+/// Employees are NOT in this enum - they are a separate table with a separate
+/// login, and their permissions are fixed.
+enum CompanyRole {
+  Owner
+  Admin
+  Manager
+  HR
+}
+
+/// Lifecycle of an Employee record. An employee is created as `Invited` with no
+/// password, and becomes `Active` only after accepting their invite.
+enum EmployeeStatus {
+  Invited
+  Active
+  Suspended
+}
+
+/// Employment basis, part of the professional profile (PRD.md section 6.2).
+enum EmploymentType {
+  FullTime
+  PartTime
+  Contract
+  Intern
+}
+
+/// Whether a client is still worked with. Rules.md section 6 forbids deleting a
+/// record that projects reference, so a client is archived rather than removed.
+enum ClientStatus {
+  Active
+  Archived
+}
+
+/// Where a project is in its life (Phases.md Phase 4, used by the Phase 9
+/// early-warning rules).
+enum ProjectStatus {
+  Planning
+  Active
+  OnHold
+  Completed
+  Cancelled
+}
+
+/// The kind of employee request (PRD.md section 6.6). One shared table for all
+/// eight rather than eight near-identical tables — Architecture.md section 6
+/// calls this out as the "polymorphic Request model" decision.
+enum RequestType {
+  Leave
+  Reimbursement
+  Equipment
+  WFH
+  HR
+  Complaint
+  Document
+  Suggestion
+}
+
+/// Where a request stands (PRD.md section 6.6). Deliberately terminal once
+/// decided - see `Request.decidedAt` - a fresh request is submitted rather than
+/// a rejected one reopened.
+enum RequestStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+/// Where a task is in the flow (PRD.md section 6.3).
+///
+/// "Overdue" is deliberately *not* a member. A task that has slipped its
+/// deadline is still To Do or In Progress - overdue describes its deadline, not
+/// its stage - so storing it here would both destroy the stage it replaced and
+/// need a job to keep it true. It is derived instead, by `isOverdue` in
+/// lib/tasks.ts.
+enum TaskStatus {
+  Todo
+  InProgress
+  InReview
+  Done
+}
+
+/// How urgent a task is (PRD.md section 6.3). Ordered least to most urgent,
+/// which is the order the board and the lists sort by.
+enum TaskPriority {
+  Low
+  Medium
+  High
+  Urgent
+}
+
+/// Where a goal stands (Phases.md Phase 8). Deliberately terminal once decided,
+/// the same shape as `RequestStatus` - a goal that changes scope is a new goal,
+/// not a reopened one.
+enum GoalStatus {
+  Active
+  Achieved
+  Missed
+}
+
+/// The kind of system-generated exception (PRD.md section 6.8). Deliberately
+/// small - Phases.md Phase 9's own bullet list names exactly these four.
+enum AlertType {
+  OverdueTask
+  OverloadedEmployee
+  StalledProject
+  AgingApproval
+}
+
+/// How urgent an alert is. `AgingApproval` is the only `Critical` type - see
+/// `lib/alerts.ts`'s `alertSeverityFor`. The exceptions panel's third color,
+/// green, is not a stored severity - it is the panel's own all-clear state
+/// when no `Alert` rows exist at all.
+enum AlertSeverity {
+  Warning
+  Critical
+}
+
+/// Tenant root. Every other model in the schema hangs off this.
+model Company {
+  id String @id @default(cuid())
+
+  name     String
+  /// Public tenant identifier used on the employee login form and in invite
+  /// links. Globally unique so an employee can name their company at sign-in.
+  slug     String @unique
+  /// PRD.md section 11 - currency defaults to INR, configurable per company.
+  currency String @default("INR")
+
+  /// Weekly capacity hours a workload of 100% represents (Phases.md Phase 6).
+  /// One flat number for the whole company rather than per employment type -
+  /// simplest v1 reading of "based on active tasks, estimated effort, and
+  /// deadlines", and it is the number `lib/workload.ts` divides by. Editable
+  /// by Owner/Admin/Manager at `/settings`.
+  weeklyCapacityHours Int @default(40)
+
+  /// Early-warning thresholds (Phases.md Phase 9 - "configurable thresholds
+  /// per company"), editable by Owner/Admin only (`canManageCompanySettings`)
+  /// at `/settings` - a company-wide alerting policy, narrower than the
+  /// workload capacity Managers can also tune.
+  overloadThresholdPercent Int @default(80)
+  stalledProjectDays       Int @default(14)
+  agingApprovalDays        Int @default(5)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  accounts           CompanyAccount[]
+  employees          Employee[]
+  departments        Department[]
+  clients            Client[]
+  projects           Project[]
+  alerts             Alert[]
+  members            ProjectMember[]
+  tasks              Task[]
+  comments           Comment[]
+  attachments        Attachment[]
+  requests           Request[]
+  notifications      Notification[]
+  goals              Goal[]
+  feedback           Feedback[]
+  performanceRecords PerformanceRecord[]
+
+  @@index([deletedAt])
+}
+
+/// Login identity for Owner / Admin / Manager / HR users.
+///
+/// Deliberately separate from `Employee` (Architecture.md section 4): a company
+/// login administers a tenant, an employee login belongs to a member of one.
+/// The two are never cross-checked during authentication.
+model CompanyAccount {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  fullName  String
+  workEmail String
+
+  /// Null until the account holder accepts their invite and sets a password.
+  /// The first Owner is created by registration and therefore always has one;
+  /// Admin / Manager / HR accounts are invited (Architecture.md section 4).
+  passwordHash String?
+  role         CompanyRole
+
+  /// Invite link token, stored as a SHA-256 hash only - same scheme as the
+  /// employee invite, so a database leak yields no usable link.
+  inviteTokenHash      String?   @unique
+  inviteTokenExpiresAt DateTime?
+
+  /// Who invited this account. Null for the Owner created at registration.
+  invitedById String?
+  invitedBy   CompanyAccount?  @relation("AccountInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitesMade CompanyAccount[] @relation("AccountInvitedBy")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  invitesSent      Employee[] @relation("EmployeeInvitedBy")
+  /// Employees whose reporting line ends at this account rather than at
+  /// another employee (Architecture.md section 4 allows either).
+  managedEmployees Employee[] @relation("EmployeeManagedByAccount")
+
+  /// Projects this account leads. A Manager's remit is "own team's projects"
+  /// (PRD.md section 9), and this is what "own" means - see `canManageProject`
+  /// in lib/permissions.ts.
+  ledProjects Project[] @relation("ProjectLead")
+
+  /// What this account has authored (Phases.md Phase 5). All three keep the
+  /// record if the account is later removed - see the `onDelete: SetNull` on
+  /// the far side.
+  createdTasks     Task[]       @relation("TaskCreatedBy")
+  comments         Comment[]    @relation("CommentAuthor")
+  attachmentsAdded Attachment[] @relation("AttachmentAddedBy")
+
+  /// Requests this account has approved or rejected (Phases.md Phase 7).
+  decidedRequests Request[]      @relation("RequestApprover")
+  notifications   Notification[] @relation("NotificationAccount")
+
+  /// Goals this account has set and feedback it has given (Phases.md Phase 8).
+  /// Both are `canEditEmployee`'s scope: Owner/Admin/HR for anyone, a Manager
+  /// only for their own direct reports.
+  goalsSet      Goal[]     @relation("GoalSetBy")
+  feedbackGiven Feedback[] @relation("FeedbackGivenBy")
+
+  /// Architecture.md section 4: work email is unique *per company*, not
+  /// globally, so the same person can hold accounts in two tenants. The login
+  /// form therefore accepts an optional company slug to disambiguate
+  /// (PRD.md section 8).
+  @@unique([companyId, workEmail])
+  @@index([workEmail])
+  @@index([companyId])
+}
+
+/// A team or function within a company (Architecture.md section 4).
+///
+/// Introduced in Phase 3, replacing the free-text `Employee.department` string
+/// that Phase 2 used as a placeholder.
+model Department {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  employees Employee[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+/// Login identity and HR profile for regular employees.
+///
+/// Always belongs to an existing Company and can never self-register
+/// (Architecture.md section 8) - a row is only created by a CompanyAccount
+/// holding Owner, Admin or HR.
+model Employee {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Company-assigned identifier (for example "EMP-001"). Employees may sign in
+  /// with this or with their company email.
+  employeeCode String
+  fullName     String
+  companyEmail String
+
+  /// Null until the employee accepts their invite and sets a password.
+  passwordHash String?
+
+  // --- Professional profile (PRD.md section 6.2) ---
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  /// Job title, for example "Senior Designer".
+  jobRole        String?
+  employmentType EmploymentType?
+  /// Employment start date, as recorded by HR. Distinct from `joinedAt`, which
+  /// is when the person activated their login.
+  startDate      DateTime?
+
+  // --- Personal profile (PRD.md section 6.2) ---
+  //
+  // Rules.md section 3: these are only ever returned to Owner, Admin, HR or the
+  // employee's own manager. See `canViewPersonalDetails` in lib/permissions.ts.
+
+  personalEmail         String?
+  phone                 String?
+  dateOfBirth           DateTime?
+  location              String?
+  address               String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  // --- Reporting line (Phases.md Phase 3 - org structure) ---
+  //
+  // Architecture.md section 4 allows a manager to be either another Employee or
+  // a CompanyAccount. Both are modelled as separate nullable foreign keys
+  // rather than a polymorphic column, so the database keeps referential
+  // integrity. At most one is set; `lib/employees.ts` enforces that.
+
+  managerId String?
+  manager   Employee?  @relation("EmployeeReportsTo", fields: [managerId], references: [id], onDelete: SetNull)
+  reports   Employee[] @relation("EmployeeReportsTo")
+
+  managerAccountId String?
+  managerAccount   CompanyAccount? @relation("EmployeeManagedByAccount", fields: [managerAccountId], references: [id], onDelete: SetNull)
+
+  status EmployeeStatus @default(Invited)
+
+  /// Invite link token. Only the SHA-256 hash is stored, so a database leak
+  /// cannot be replayed to claim an account.
+  inviteTokenHash      String?   @unique
+  inviteTokenExpiresAt DateTime?
+
+  invitedById String?
+  invitedBy   CompanyAccount? @relation("EmployeeInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  /// Projects this employee is assigned to (Phases.md Phase 4).
+  projectMemberships ProjectMember[]
+
+  /// Tasks this employee is the assignee of (Phases.md Phase 5). The Phase 6
+  /// workload calculation is driven from these.
+  assignedTasks Task[] @relation("TaskAssignee")
+
+  /// Requests this employee has submitted (Phases.md Phase 7).
+  requests         Request[]
+  notifications    Notification[] @relation("NotificationEmployee")
+  attachmentsAdded Attachment[]   @relation("AttachmentAddedByEmployee")
+
+  /// Goals, feedback and score history (Phases.md Phase 8). Goals and feedback
+  /// are manager-owned - an employee reads both on My Growth but never writes
+  /// them (see `canEditEmployee` in lib/permissions.ts). The score history is a
+  /// real timeline (Architecture.md's ERD: `Employee 1---* PerformanceRecord`),
+  /// unlike `workloadPercent`'s single cached value - each recompute that finds
+  /// enough data appends a row rather than overwriting one.
+  goals              Goal[]
+  feedbackReceived   Feedback[]
+  performanceRecords PerformanceRecord[]
+
+  /// Alerts about this employee - an overload, or an aging request they
+  /// submitted (Phases.md Phase 9). Lets a Manager's dashboard filter to
+  /// alerts about their own direct reports.
+  alerts Alert[]
+
+  /// Cached workload % (Phases.md Phase 6), computed by `lib/workload-data.ts`
+  /// from open assigned tasks and the company's `weeklyCapacityHours`. Cached
+  /// rather than computed on every read (Architecture.md section 6) and kept
+  /// fresh by recomputing on every task write that could change it, plus the
+  /// `/api/jobs/recalculate-workload` sweep as a safety net. Null means "never
+  /// computed yet" - distinct from 0%, which means "computed, and currently
+  /// free".
+  workloadPercent   Decimal?  @db.Decimal(6, 2)
+  workloadUpdatedAt DateTime?
+
+  /// When the employee activated their login by accepting the invite.
+  joinedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([companyId, employeeCode])
+  @@unique([companyId, companyEmail])
+  @@index([companyId])
+  @@index([managerId])
+  @@index([managerAccountId])
+  @@index([departmentId])
+}
+
+/// A client the agency delivers work for (Architecture.md section 4).
+model Client {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name String
+
+  /// Primary point of contact. All optional: a client can be recorded before
+  /// the contact details are known.
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  notes        String?
+
+  status ClientStatus @default(Active)
+
+  projects Project[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  /// One client name per company, so the same agency cannot end up with two
+  /// records for the same customer. Names may repeat across tenants.
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+/// A piece of work delivered for a client (Architecture.md section 4).
+///
+/// Tasks (Phase 5) hang off a project, and the financial fields here are what
+/// the Phase 11 per-client margin rollup is computed from.
+model Project {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Architecture.md section 4: every project belongs to a client.
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  name        String
+  /// Short human-readable code, for example "NW-WEB". Unique per company when
+  /// set, so it can be used to refer to a project unambiguously.
+  code        String?
+  description String?
+
+  status    ProjectStatus @default(Planning)
+  startDate DateTime?
+  dueDate   DateTime?
+
+  /// Basic financials (Phases.md Phase 4). Stored as exact decimals rather than
+  /// floats so money never accumulates rounding error; the currency is the
+  /// company's (`Company.currency`, PRD.md section 11), not per project.
+  /// Margin is derived at read time, never stored, so it cannot go stale.
+  value         Decimal? @db.Decimal(14, 2)
+  estimatedCost Decimal? @db.Decimal(14, 2)
+
+  /// The company account accountable for the project. A Manager may manage the
+  /// projects they lead (PRD.md section 9 - "own team's projects").
+  leadAccountId String?
+  leadAccount   CompanyAccount? @relation("ProjectLead", fields: [leadAccountId], references: [id], onDelete: SetNull)
+
+  members ProjectMember[]
+  tasks   Task[]
+
+  /// Alerts about this project - stalled, or an overdue task on it
+  /// (Phases.md Phase 9). Lets a Manager's dashboard filter to alerts about
+  /// the projects they lead.
+  alerts Alert[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([leadAccountId])
+}
+
+/// An employee assigned to a project team (Phases.md Phase 4).
+///
+/// Carries its own `companyId` per Rules.md section 2, and because the Phase 11
+/// rollups count team size straight from this table.
+///
+/// It has no `deletedAt`: a membership records no history of its own, so
+/// removing someone from a team is a real delete, and a soft-deleted row would
+/// only block re-adding them through the `[projectId, employeeId]` unique. Its
+/// rows are therefore never read through `scopedWhere` - every read and write
+/// goes via a Project that was already loaded through the tenant filter, which
+/// is what proves the tenant.
+model ProjectMember {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  /// Somebody is on a team once, not twice.
+  @@unique([projectId, employeeId])
+  @@index([companyId])
+  @@index([employeeId])
+}
+
+/// A unit of work on a project (Architecture.md section 4, PRD.md section 6.3).
+///
+/// Every task belongs to a project, because a project is what gives a task a
+/// client, a budget and a team. The assignee is an `Employee` and never a
+/// `CompanyAccount`: company accounts run the work, employees do it, which is
+/// the split Architecture.md section 4 draws.
+model Task {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  title       String
+  description String?
+
+  status   TaskStatus   @default(Todo)
+  priority TaskPriority @default(Medium)
+
+  /// Null is a real state - work sitting in the backlog before anyone picks it
+  /// up. Constrained to the project's team by `resolveTaskWrite`.
+  assigneeId String?
+  assignee   Employee? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  /// The deadline. Stored at UTC midnight like every other date-only field, so
+  /// "due the 9th" does not become the 8th west of Greenwich.
+  dueDate DateTime?
+
+  /// Estimated effort in hours (PRD.md section 6.3). A Decimal rather than a
+  /// float because Phase 6 sums these into a workload percentage, and half an
+  /// hour must stay half an hour after a hundred additions.
+  estimatedHours Decimal? @db.Decimal(6, 2)
+
+  /// Actual completion (PRD.md section 6.3). Set when the task first reaches
+  /// Done and cleared if it is moved back out, by `completionFor` in
+  /// lib/tasks.ts - it is an event timestamp, so unlike "overdue" it cannot be
+  /// derived from the current row.
+  completedAt DateTime?
+
+  /// Who raised the task. Kept for the audit trail, and null if that account is
+  /// later removed.
+  createdById String?
+  createdBy   CompanyAccount? @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  comments    Comment[]
+  attachments Attachment[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([projectId])
+  @@index([assigneeId])
+  /// The board and the overdue sweep both read "open tasks by deadline".
+  @@index([companyId, status, dueDate])
+}
+
+/// A message on a task (Architecture.md section 4).
+///
+/// Authored by a CompanyAccount: in Phase 5 tasks are a company-side view, and
+/// employees reach their own work in Phase 10, which is when an employee author
+/// column joins this table.
+model Comment {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  /// Null once the author's account is removed. The message stays, because a
+  /// conversation with a hole in it is worse than one signed "Removed user".
+  authorAccountId String?
+  authorAccount   CompanyAccount? @relation("CommentAuthor", fields: [authorAccountId], references: [id], onDelete: SetNull)
+
+  body String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Soft-deleted (Rules.md section 6): a thread is a record of a decision, so
+  /// removing one message must not silently rewrite the discussion around it.
+  deletedAt DateTime?
+
+  @@index([taskId, createdAt])
+  @@index([companyId])
+}
+
+/// A file attached to a task or a request (Architecture.md section 4).
+///
+/// Phase 5 records a **link** to a file - the shared document, the design, the
+/// spec - because the S3 bucket Architecture.md section 2 calls for is not
+/// provisioned yet (the `S3_*` variables in .env.example are still blank).
+/// Uploads slot in on top of this row rather than beside it: an uploaded file
+/// adds `storageKey`, `contentType` and `sizeBytes`, and the link stays valid
+/// for everything that already lives in Drive or Figma.
+///
+/// Phase 7 widens this to also hang off a `Request`, since Architecture.md's
+/// ER diagram always drew `Request 1---* Attachment` and a second,
+/// near-identical table would only duplicate this one. `taskId`/`requestId`
+/// and `addedById`/`addedByEmployeeId` are two pairs of nullable foreign keys
+/// rather than a polymorphic column, the same shape `Employee.managerId` /
+/// `managerAccountId` already uses - exactly one of each pair is set, enforced
+/// in `lib/attachments.ts`, not by a database constraint.
+///
+/// Like `ProjectMember`, this is a pointer and not a history, so removing one
+/// is a real delete.
+model Attachment {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  taskId String?
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  requestId String?
+  request   Request? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  /// What the file is, in the adder's words. Falls back to the URL's own last
+  /// path segment when they leave it blank.
+  label String
+  /// Validated to http/https only, so a stored link can never be a `javascript:`
+  /// payload aimed at whoever clicks it (Architecture.md section 8).
+  url   String
+
+  /// A task attachment is always added by a `CompanyAccount` (Phase 5); a
+  /// request attachment may be added by either the submitting `Employee` or
+  /// the `CompanyAccount` deciding it (Phase 7).
+  addedById String?
+  addedBy   CompanyAccount? @relation("AttachmentAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+
+  addedByEmployeeId String?
+  addedByEmployee   Employee? @relation("AttachmentAddedByEmployee", fields: [addedByEmployeeId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([requestId])
+  @@index([companyId])
+}
+
+/// An employee request (PRD.md section 6.6, Phases.md Phase 7) - leave,
+/// reimbursement, equipment, work-from-home, HR, complaint, document or
+/// suggestion, sharing one shape and one approval workflow (Architecture.md
+/// section 6's "polymorphic Request model" decision).
+///
+/// `startDate`/`endDate` and `amount` are only ever set for the request types
+/// that need them (`lib/requests.ts`'s `requestNeedsDateRange`/
+/// `requestNeedsAmount`) and validated accordingly in
+/// `lib/validations/requests.ts` - they stay nullable columns on this one
+/// table rather than becoming per-type tables.
+model Request {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  /// Always an Employee (PRD.md section 6.9 - "My Requests" is part of
+  /// employee self-service) - a CompanyAccount decides, never submits.
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  type   RequestType
+  status RequestStatus @default(Pending)
+
+  subject     String
+  description String
+
+  /// Leave / WFH only.
+  startDate DateTime?
+  endDate   DateTime?
+
+  /// Reimbursement only. The company's own currency (`Company.currency`),
+  /// like `Project.value` - never a per-request currency.
+  amount Decimal? @db.Decimal(12, 2)
+
+  /// Who decided this request, and how. Null until `status` leaves `Pending`.
+  /// A decision is one-time (`lib/request-data.ts` refuses to re-decide an
+  /// already-decided request) - a changed mind is a fresh request, not a
+  /// reopened one.
+  approverId   String?
+  approver     CompanyAccount? @relation("RequestApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  decisionNote String?
+  decidedAt    DateTime?
+
+  attachments Attachment[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([companyId, status])
+}
+
+/// An in-app notification (Architecture.md section 7). Fired on a request
+/// being submitted (to its approvers) or decided (to the submitting
+/// employee) - the two Phase 7 events - via `lib/notifications.ts`.
+///
+/// `recipientEmployeeId`/`recipientAccountId` are the same two-nullable-FK
+/// shape as everywhere else in this schema that a row belongs to "an Employee
+/// or a CompanyAccount": exactly one is set, enforced in `lib/notifications.ts`.
+model Notification {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  recipientEmployeeId String?
+  recipientEmployee   Employee? @relation("NotificationEmployee", fields: [recipientEmployeeId], references: [id], onDelete: Cascade)
+
+  recipientAccountId String?
+  recipientAccount   CompanyAccount? @relation("NotificationAccount", fields: [recipientAccountId], references: [id], onDelete: Cascade)
+
+  message String
+  /// Where clicking the notification should go, e.g. `/requests/[id]`.
+  link    String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([recipientEmployeeId])
+  @@index([recipientAccountId])
+}
+
+/// A goal set for an employee (PRD.md section 6.5 - "OKR-style, simple").
+///
+/// Manager-owned: Owner/Admin/HR or the employee's own manager create and
+/// decide a goal (`canEditEmployee`'s existing scope - lib/permissions.ts);
+/// the employee reads it on My Growth but never writes it. No numeric progress
+/// field - a goal is `Active` until explicitly marked `Achieved` or `Missed`,
+/// which is all `lib/performance.ts`'s score needs and all Phases.md's "simple"
+/// tracking asks for.
+model Goal {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  /// Who set this goal. Null if that account is later removed - the goal
+  /// itself stays, like a task's `createdBy`.
+  createdById String?
+  createdBy   CompanyAccount? @relation("GoalSetBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  targetDate  DateTime?
+
+  status GoalStatus @default(Active)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([employeeId])
+}
+
+/// A manager feedback log entry (PRD.md section 6.5). Visible to the employee
+/// immediately - there is no private/draft state.
+///
+/// `rating` is a 1-5 number alongside the free-text `body`: the scoring engine
+/// needs a number to average, and the log entry alone can't feed the formula.
+model Feedback {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  givenById String?
+  givenBy   CompanyAccount? @relation("FeedbackGivenBy", fields: [givenById], references: [id], onDelete: SetNull)
+
+  rating Int
+  body   String
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([employeeId])
+}
+
+/// One point on an employee's performance history timeline (Architecture.md's
+/// ERD: `Employee 1---* PerformanceRecord`, PRD.md section 6.5 - "performance
+/// history timeline per employee").
+///
+/// Unlike `Employee.workloadPercent` (a single cached value overwritten in
+/// place), this is a real history: `lib/performance-data.ts` appends a new row
+/// every time a triggering write (a task reaching Done, new feedback, a
+/// decided goal) produces enough data to compute a score. When there isn't
+/// enough data yet, no row is written at all - simpler than a nullable `score`
+/// sentinel, and "no records yet" already reads correctly as "not enough data".
+model PerformanceRecord {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  /// `lib/performance.ts`'s `calculatePerformanceScore` output, 0-100 (may
+  /// read outside that range only if the formula changes - kept as a Decimal
+  /// like `workloadPercent` so it never accumulates float error).
+  score Decimal @db.Decimal(5, 2)
+
+  computedAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([employeeId, computedAt])
+}
+
+/// A system-generated exception (PRD.md section 6.8, Phases.md Phase 9's
+/// early-warning engine): an overdue task, an overloaded employee, a stalled
+/// project, or a pending request aging past the company's threshold.
+///
+/// A live snapshot, not a history like `PerformanceRecord` - regenerating a
+/// company's alerts (`lib/alert-data.ts`'s `recalcCompanyAlerts`) deletes every
+/// existing row for it and inserts the currently-triggered ones in one
+/// transaction. Simplest correct model for "what needs attention right now",
+/// and avoids a resolved/unresolved state machine nothing asks for.
+///
+/// `employeeId`/`projectId` are two independent, optional pointers (not the
+/// usual "exactly one of these is set" pair) - an `OverdueTask` alert sets
+/// both (the assignee and the task's project), `OverloadedEmployee` and
+/// `AgingApproval` set only `employeeId`, `StalledProject` only `projectId`.
+/// They exist so a Manager's dashboard can filter to alerts about their own
+/// direct reports or led projects, the same scoping already applied to
+/// requests, performance and workload.
+model Alert {
+  id String @id @default(cuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  type     AlertType
+  severity AlertSeverity
+
+  message String
+  /// Where clicking the alert should go, e.g. `/tasks/[id]`.
+  link    String?
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([companyId, type])
+  @@index([employeeId])
+  @@index([projectId])
+}

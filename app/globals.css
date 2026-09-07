@@ -1,0 +1,218 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * AgencyOS theme — implements Design.md § 3 (color), § 4 (type), § 5 (spacing/radius).
+ *
+ * Two palettes are kept deliberately separate (Design.md § 3):
+ *   - brand-*  → branding, CTAs, navigation, active states. Never signals status.
+ *   - success/warning/danger/info → task, workload, request and alert states only.
+ *
+ * Light theme only for v1 (Design.md § 2). Tokens are CSS variables so a dark
+ * theme can be added later by redefining them, without touching components.
+ */
+
+@theme inline {
+  /* --- Brand palette (Design.md § 3) --- */
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-yellow-hover: var(--brand-yellow-hover);
+  --color-brand-yellow-light: var(--brand-yellow-light);
+  --color-brand-brown: var(--brand-brown);
+  --color-brand-brown-soft: var(--brand-brown-soft);
+  --color-brand-brown-light: var(--brand-brown-light);
+
+  /* --- Status palette (Design.md § 3) — never used for branding --- */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  /*
+   * Status colours rendered as TEXT (badges, status labels).
+   *
+   * Design.md § 3 specifies the status hues for fills — bars, charts, dots —
+   * and § 10 requires AA (4.5:1) for all text. Measured on our four surfaces,
+   * the fill hues reach only success 3.01:1, warning 3.13:1, danger 3.82:1, so
+   * using them as label text would break § 10. These are the same hues
+   * darkened to the first value that passes on white, cream, surface-muted and
+   * brand-yellow-light. `info` already passed and is unchanged.
+   *
+   * Use --color-*-text for text, --color-success/warning/danger for fills.
+   */
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-danger-text: var(--danger-text);
+  --color-info-text: var(--info-text);
+
+  /* --- Base surfaces (Design.md § 3) --- */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+
+  /* --- shadcn/ui semantic tokens, mapped onto the brand palette --- */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* --- Typography (Design.md § 4) — one family throughout --- */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+
+  --text-display: 2rem; /* 32px — landing hero only */
+  --text-h1: 1.5rem; /* 24px — page titles */
+  --text-h2: 1.25rem; /* 20px — section headers */
+  --text-h3: 1rem; /* 16px — card titles */
+  --text-body: 0.875rem; /* 14px — default text */
+  --text-meta: 0.75rem; /* 12px — timestamps, labels */
+
+  /* --- Radius (Design.md § 6 — cards rounded-xl ≈ 12px) --- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+}
+
+:root {
+  /* Brand */
+  --brand-yellow: #f2b705;
+  --brand-yellow-hover: #d9a400;
+  --brand-yellow-light: #fdf3d7;
+  --brand-brown: #4a3a2c;
+  --brand-brown-soft: #7a6653;
+  --brand-brown-light: #c9b8a4;
+
+  /* Status — fills (bars, charts, dots) exactly as Design.md § 3 specifies */
+  --success: #2f9e44;
+  --warning: #e8590c;
+  --danger: #d64545;
+  --info: #3b6e91;
+
+  /* Status — text, darkened to meet the AA floor Design.md § 10 requires */
+  --success-text: #257c35;
+  --warning-text: #bb480a;
+  --danger-text: #bd3d3d;
+  --info-text: #3b6e91;
+
+  /* Base / neutrals */
+  --background: #fffbf2;
+  --foreground: #2e2317;
+  --surface: #ffffff;
+  --surface-muted: #f5efe3;
+
+  /* shadcn semantic mapping */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand-yellow);
+  --primary-foreground: var(--brand-brown);
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--brand-brown);
+  --muted: var(--surface-muted);
+  /*
+   * Design.md lists `text-secondary` as #8A7A66, but that only reaches 4.02:1
+   * on the cream background - below the AA 4.5:1 minimum that Design.md
+   * section 10 requires (and explicitly names this pair for). We use
+   * `brand-brown-soft`, whose documented role in Design.md section 3 is
+   * "secondary text, icons, muted labels", and which passes at 5.28:1.
+   */
+  --muted-foreground: var(--brand-brown-soft);
+  --accent: var(--brand-yellow-light);
+  --accent-foreground: var(--brand-brown);
+  --destructive: var(--danger);
+  --border: #e9dfcb;
+  --input: #e9dfcb;
+  --ring: var(--brand-yellow);
+
+  /*
+   * Charts (Design.md § 6): status palette for workload/performance series,
+   * brand-yellow as the single accent for neutral volume series.
+   */
+  --chart-1: var(--brand-yellow);
+  --chart-2: var(--success);
+  --chart-3: var(--warning);
+  --chart-4: var(--danger);
+  --chart-5: var(--info);
+
+  /* App sidebar (Design.md § 6): brown surface, cream text, yellow active state */
+  --sidebar: var(--brand-brown);
+  --sidebar-foreground: #fffbf2;
+  --sidebar-primary: var(--brand-yellow);
+  --sidebar-primary-foreground: var(--brand-brown);
+  --sidebar-accent: var(--brand-yellow-light);
+  --sidebar-accent-foreground: var(--brand-brown);
+  --sidebar-border: var(--brand-brown-soft);
+  --sidebar-ring: var(--brand-yellow);
+
+  --radius: 12px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-size: var(--text-body);
+  }
+
+  html {
+    @apply font-sans antialiased;
+    /* Offset in-page anchors so the sticky marketing header never covers them. */
+    scroll-padding-top: 5rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-brand-brown font-semibold;
+  }
+
+  /* Keyboard focus ring in brand-yellow at 2px offset (Design.md § 10) */
+  :focus-visible {
+    @apply outline-ring outline-2 outline-offset-2;
+  }
+}

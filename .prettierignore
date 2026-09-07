@@ -1,0 +1,14 @@
+.next
+node_modules
+lib/generated
+package-lock.json
+prisma/migrations
+
+# Project planning documents are the source of truth and are edited by hand.
+# Keep formatter churn out of them.
+PRD.md
+Architecture.md
+Rules.md
+Phases.md
+Design.md
+Memory.md

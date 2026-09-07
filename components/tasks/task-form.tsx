@@ -1,0 +1,267 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  FormError,
+  FormField,
+  SelectField,
+  TextareaField,
+  type SelectOption,
+} from "@/components/forms/fields";
+import {
+  taskPriorityLabel,
+  taskStatusLabel,
+} from "@/components/tasks/status-badge";
+import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/tasks";
+import {
+  createTaskSchema,
+  type CreateTaskInput,
+} from "@/lib/validations/tasks";
+
+/**
+ * Create and edit a task (Phases.md Phase 5).
+ *
+ * One component covers both, because the fields and the validation rules are
+ * the same — only the endpoint differs. Comments and attachments live on the
+ * task page rather than here, so adding one is a single action and not a form
+ * save.
+ */
+const STATUS_OPTIONS = TASK_STATUSES.map((status) => ({
+  value: status,
+  label: taskStatusLabel(status),
+}));
+
+const PRIORITY_OPTIONS = TASK_PRIORITIES.map((priority) => ({
+  value: priority,
+  label: taskPriorityLabel(priority),
+}));
+
+export function TaskForm({
+  mode,
+  taskId,
+  defaultValues,
+  projects,
+  assigneesByProject,
+  cancelHref,
+}: {
+  mode: "create" | "edit";
+  taskId?: string;
+  defaultValues: CreateTaskInput;
+  projects: SelectOption[];
+  /** Each project's team, keyed by project id. */
+  assigneesByProject: Record<string, SelectOption[]>;
+  cancelHref: string;
+}) {
+  const router = useRouter();
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    resetField,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateTaskInput>({
+    resolver: zodResolver(createTaskSchema),
+    defaultValues,
+  });
+
+  /**
+   * A task can only go to somebody on its project's team, so the assignee list
+   * follows the chosen project. Watching it here keeps the picker honest
+   * without a round trip on every change.
+   *
+   * `useWatch` rather than the form's `watch()`: it subscribes to this one
+   * field, and it is the variant React Compiler can memoise.
+   */
+  const projectId = useWatch({ control, name: "projectId" });
+  const assignees = assigneesByProject[projectId] ?? [];
+
+  const onSubmit = handleSubmit(async (values) => {
+    setFormError(null);
+
+    const response = await fetch(
+      mode === "create" ? "/api/tasks" : `/api/tasks/${taskId}`,
+      {
+        method: mode === "create" ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      }
+    );
+
+    const body = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      if (body?.fieldErrors) {
+        for (const [field, message] of Object.entries(
+          body.fieldErrors as Record<string, string>
+        )) {
+          setError(field as keyof CreateTaskInput, { message });
+        }
+      }
+      setFormError(body?.error ?? "Could not save this task.");
+      return;
+    }
+
+    if (mode === "edit" && body.stillManageable === false) {
+      /**
+       * They moved the task to a project somebody else leads, and a Manager
+       * only manages the tasks on their own projects — better to say so here
+       * than to let them discover it through a refused save.
+       */
+      toast.warning(
+        "Task moved. It now sits on a project you do not lead, so you can no longer edit it."
+      );
+      router.push("/tasks");
+      router.refresh();
+      return;
+    }
+
+    toast.success(
+      mode === "create" ? `${body.task.title} created` : "Task updated"
+    );
+    router.push(`/tasks/${taskId ?? body.task.id}`);
+    router.refresh();
+  });
+
+  return (
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-8">
+      <FormError message={formError} />
+
+      <Section
+        title="The work"
+        description="What needs doing, and where it sits."
+      >
+        <FormField
+          id="title"
+          label="Title"
+          placeholder="Draft the homepage copy"
+          fieldClassName="sm:col-span-2"
+          error={errors.title?.message}
+          {...register("title")}
+        />
+        <SelectField
+          id="projectId"
+          label="Project"
+          placeholder="Choose a project"
+          options={projects}
+          error={errors.projectId?.message}
+          {...register("projectId", {
+            /**
+             * The person selected may not be on the new project's team, and
+             * leaving a stale name in the box would only fail on save.
+             */
+            onChange: () => resetField("assigneeId", { defaultValue: "" }),
+          })}
+        />
+        <SelectField
+          id="assigneeId"
+          label="Assignee"
+          placeholder="Unassigned"
+          options={assignees}
+          hint={
+            !projectId
+              ? "Choose a project first."
+              : assignees.length === 0
+                ? "Nobody is on this project's team yet — add someone on the project page."
+                : "Only this project's team can be given its work."
+          }
+          error={errors.assigneeId?.message}
+          {...register("assigneeId")}
+        />
+      </Section>
+
+      <Section
+        title="Scheduling"
+        description="Where it stands, how urgent it is, and when it is needed."
+      >
+        <SelectField
+          id="status"
+          label="Status"
+          options={STATUS_OPTIONS}
+          error={errors.status?.message}
+          {...register("status")}
+        />
+        <SelectField
+          id="priority"
+          label="Priority"
+          options={PRIORITY_OPTIONS}
+          error={errors.priority?.message}
+          {...register("priority")}
+        />
+        <FormField
+          id="dueDate"
+          label="Due date"
+          type="date"
+          hint="A task past this date is flagged overdue until it is done."
+          error={errors.dueDate?.message}
+          {...register("dueDate")}
+        />
+        <FormField
+          id="estimatedHours"
+          label="Estimated effort (hours)"
+          inputMode="decimal"
+          placeholder="6"
+          hint="Used to work out workload in a later phase."
+          error={errors.estimatedHours?.message}
+          {...register("estimatedHours")}
+        />
+      </Section>
+
+      <Section
+        title="Detail"
+        description="Anything the assignee needs to know."
+      >
+        <TextareaField
+          id="description"
+          label="Description"
+          rows={5}
+          fieldClassName="sm:col-span-2"
+          error={errors.description?.message}
+          {...register("description")}
+        />
+      </Section>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting
+            ? "Saving…"
+            : mode === "create"
+              ? "Create task"
+              : "Save changes"}
+        </Button>
+        <Button asChild variant="ghost">
+          <Link href={cancelHref}>Cancel</Link>
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-4">
+      <legend className="sr-only">{title}</legend>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-h3 text-brand-brown font-semibold">{title}</h2>
+        <p className="text-text-secondary text-meta">{description}</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+    </fieldset>
+  );
+}

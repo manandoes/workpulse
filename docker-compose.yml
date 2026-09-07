@@ -1,0 +1,27 @@
+# Local development services for AgencyOS.
+# Production uses managed equivalents (see Architecture.md section 2).
+#
+#   docker compose up -d      start Postgres
+#   docker compose down       stop it (data is kept in the named volume)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: agencyos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agencyos
+      POSTGRES_PASSWORD: agencyos
+      POSTGRES_DB: agencyos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agencyos -d agencyos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

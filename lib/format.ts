@@ -1,0 +1,107 @@
+/**
+ * Display formatting shared across the app.
+ */
+
+/**
+ * Format a date-only value (date of birth, start date) without shifting it.
+ *
+ * These are stored as UTC midnight, so reading them through the viewer's local
+ * timezone would show the previous day west of Greenwich. Reading the UTC parts
+ * keeps the date the user typed.
+ */
+export function formatDate(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** `YYYY-MM-DD` for prefilling a date input. */
+export function toDateInputValue(value: Date | null | undefined): string {
+  if (!value) return "";
+  return value.toISOString().slice(0, 10);
+}
+
+/**
+ * Turn an enum identifier such as `FullTime` into `Full Time` for display.
+ *
+ * Only word boundaries are touched — casing is left alone so acronym values
+ * like `HR` survive intact.
+ */
+export function humanizeEnum(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+}
+
+/**
+ * Format an amount in the company's currency (PRD.md section 11 — currency
+ * defaults to INR and is configurable per company, so it is always passed in
+ * rather than assumed).
+ *
+ * Accepts what the callers actually hold: a Prisma `Decimal`, a number, or the
+ * string a form submitted. An unrecorded amount renders as an em dash, which is
+ * deliberately different from a recorded zero.
+ */
+export function formatMoney(
+  value: { toString(): string } | number | string | null | undefined,
+  currency: string
+): string {
+  if (value === null || value === undefined || value === "") return "—";
+
+  const amount = Number(value.toString());
+  if (!Number.isFinite(amount)) return "—";
+
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+/** A signed percentage, for margins. */
+export function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  return `${value.toFixed(1)}%`;
+}
+
+/** `1,50,000` for prefilling a number input is wrong — it needs the raw value. */
+export function toAmountInputValue(
+  value: { toString(): string } | null | undefined
+): string {
+  if (value === null || value === undefined) return "";
+  return value.toString();
+}
+
+/**
+ * A timestamp with the time of day, for a comment or an attachment.
+ *
+ * Rendered in UTC like `formatDate`, and for the same reason: these pages are
+ * server-rendered, so formatting in "local" time would mean the server's
+ * timezone, and the value would change under the reader when the page
+ * re-rendered on the client. One stable zone is honest; two are a bug.
+ */
+export function formatDateTime(
+  value: Date | string | null | undefined
+): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
+}
