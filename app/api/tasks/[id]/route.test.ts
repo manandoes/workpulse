@@ -68,6 +68,51 @@ describe("PATCH /api/tasks/[id]", () => {
     expect(response.status).toBe(403);
   });
 
+  it("lets a standalone task's creator edit it", async () => {
+    const { companyId } = await createTestCompany();
+    const managerId = await createCompanyAccount(companyId, "Manager");
+    const taskId = await createTask(companyId, null, {
+      createdById: managerId,
+    });
+    vi.mocked(getActor).mockResolvedValue(
+      companyActor(companyId, managerId, "Manager")
+    );
+
+    const response = await PATCH(
+      jsonRequest(`http://localhost/api/tasks/${taskId}`, "PATCH", {
+        title: "Renamed personal task",
+        projectId: "",
+      }),
+      { params: Promise.resolve({ id: taskId }) }
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.task.title).toBe("Renamed personal task");
+  });
+
+  it("refuses another company account editing someone else's standalone task", async () => {
+    const { companyId } = await createTestCompany();
+    const managerId = await createCompanyAccount(companyId, "Manager");
+    const otherManagerId = await createCompanyAccount(companyId, "Manager");
+    const taskId = await createTask(companyId, null, {
+      createdById: managerId,
+    });
+    vi.mocked(getActor).mockResolvedValue(
+      companyActor(companyId, otherManagerId, "Manager")
+    );
+
+    const response = await PATCH(
+      jsonRequest(`http://localhost/api/tasks/${taskId}`, "PATCH", {
+        title: "Should not work",
+        projectId: "",
+      }),
+      { params: Promise.resolve({ id: taskId }) }
+    );
+
+    expect(response.status).toBe(403);
+  });
+
   it("404s for a task id from another company", async () => {
     const { companyId, ownerId } = await createTestCompany();
     const { companyId: otherCompanyId } = await createTestCompany();

@@ -10,6 +10,7 @@ import {
   OPEN_STATUSES,
   startOfDayUtc,
   taskFilter,
+  taskVisibilityFilter,
   TASK_STATUSES,
   UNASSIGNED,
 } from "@/lib/tasks";
@@ -212,6 +213,32 @@ describe("isHttpUrl", () => {
   it("rejects anything that is not a URL at all", () => {
     expect(isHttpUrl("the brief")).toBe(false);
     expect(isHttpUrl("")).toBe(false);
+  });
+});
+
+describe("taskVisibilityFilter", () => {
+  it("always includes tasks on a project", () => {
+    const where = taskVisibilityFilter({
+      id: "acct_1",
+      accountType: "company",
+    });
+    expect(where.OR).toContainEqual({ projectId: { not: null } });
+  });
+
+  it("scopes a standalone task to its creator for a company actor", () => {
+    const where = taskVisibilityFilter({
+      id: "acct_1",
+      accountType: "company",
+    });
+    expect(where.OR).toContainEqual({ createdById: "acct_1" });
+  });
+
+  it("scopes a standalone task to its assignee for an employee actor", () => {
+    const where = taskVisibilityFilter({
+      id: "emp_1",
+      accountType: "employee",
+    });
+    expect(where.OR).toContainEqual({ assigneeId: "emp_1" });
   });
 });
 

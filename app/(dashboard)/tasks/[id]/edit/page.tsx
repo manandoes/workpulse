@@ -4,13 +4,17 @@ import { getActor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { scopedWhere } from "@/lib/tenant";
 import { toAmountInputValue, toDateInputValue } from "@/lib/format";
-import { loadAssigneesByProject, loadTaskProjects } from "@/lib/task-data";
+import {
+  loadAssigneesByProject,
+  loadCompanyEmployeeOptions,
+  loadTaskProjects,
+} from "@/lib/task-data";
 import { canManageTask, canViewTasks } from "@/lib/permissions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { TaskForm } from "@/components/tasks/task-form";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Edit task — AgencyOS" };
+export const metadata: Metadata = { title: "Edit task — WorkPulse" };
 
 export default async function EditTaskPage({
   params,
@@ -32,6 +36,7 @@ export default async function EditTaskPage({
       dueDate: true,
       estimatedHours: true,
       assigneeId: true,
+      createdById: true,
       projectId: true,
       project: { select: { leadAccountId: true } },
     },
@@ -43,11 +48,12 @@ export default async function EditTaskPage({
   // being shown a form that would only fail (Rules.md section 3).
   if (!canManageTask(actor, task)) redirect(`/tasks/${task.id}`);
 
-  const [projects, assigneesByProject] = await Promise.all([
+  const [projects, assigneesByProject, allEmployees] = await Promise.all([
     // Every project, including closed ones: the task's own project must stay in
     // the list, or editing anything else would silently move the task.
     loadTaskProjects(actor),
     loadAssigneesByProject(actor),
+    loadCompanyEmployeeOptions(actor),
   ]);
 
   return (
@@ -65,9 +71,10 @@ export default async function EditTaskPage({
             cancelHref={`/tasks/${task.id}`}
             projects={projects}
             assigneesByProject={assigneesByProject}
+            allEmployees={allEmployees}
             defaultValues={{
               title: task.title,
-              projectId: task.projectId,
+              projectId: task.projectId ?? "",
               description: task.description ?? "",
               status: task.status,
               priority: task.priority,

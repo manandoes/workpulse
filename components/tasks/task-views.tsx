@@ -10,6 +10,7 @@ import {
 import { TaskStatusSelect } from "@/components/tasks/task-status-select";
 import { Card, CardContent } from "@/components/ui/card";
 import type { TaskPriority, TaskStatus } from "@/lib/generated/prisma/enums";
+import { cn } from "cn";
 
 /**
  * The two ways a task list is shown (Phases.md Phase 5 — "task board (Kanban)
@@ -27,12 +28,14 @@ export type TaskSummary = {
   priority: TaskPriority;
   dueDate: Date | null;
   assignee: { id: string; fullName: string } | null;
+  createdById: string | null;
   /**
    * Carries the lead because a task is governed by its project: the page's
    * `canManage` reads it to decide, per row, whether the status control is
-   * shown (`canManageTask` in lib/permissions.ts).
+   * shown (`canManageTask` in lib/permissions.ts). `null` for a standalone
+   * task, which has no project to be governed by.
    */
-  project: { id: string; name: string; leadAccountId: string | null };
+  project: { id: string; name: string; leadAccountId: string | null } | null;
 };
 
 /** Whether the viewer may move a given task. */
@@ -45,6 +48,35 @@ function TaskTitle({ task }: { task: TaskSummary }) {
       className="text-brand-brown font-medium underline-offset-4 hover:underline"
     >
       {task.title}
+    </Link>
+  );
+}
+
+/** A task's project, or "Personal task" when it has none. */
+function TaskProjectLabel({
+  project,
+  className,
+}: {
+  project: TaskSummary["project"];
+  className?: string;
+}) {
+  if (!project) {
+    return (
+      <span className={cn("text-text-secondary", className)}>
+        Personal task
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={`/projects/${project.id}`}
+      className={cn(
+        "text-text-secondary underline-offset-4 hover:underline",
+        className
+      )}
+    >
+      {project.name}
     </Link>
   );
 }
@@ -104,12 +136,10 @@ export function TaskBoard({
                     <CardContent className="flex flex-col gap-2 py-2">
                       <TaskTitle task={task} />
 
-                      <Link
-                        href={`/projects/${task.project.id}`}
-                        className="text-text-secondary text-meta underline-offset-4 hover:underline"
-                      >
-                        {task.project.name}
-                      </Link>
+                      <TaskProjectLabel
+                        project={task.project}
+                        className="text-meta"
+                      />
 
                       <div className="flex flex-wrap items-center gap-2">
                         <TaskPriorityBadge priority={task.priority} />
@@ -183,12 +213,7 @@ export function TaskList({
                     </div>
                   </td>
                   <td className="text-text-secondary px-3 py-3">
-                    <Link
-                      href={`/projects/${task.project.id}`}
-                      className="underline-offset-4 hover:underline"
-                    >
-                      {task.project.name}
-                    </Link>
+                    <TaskProjectLabel project={task.project} />
                   </td>
                   <td className="text-text-secondary px-3 py-3">
                     {task.assignee ? (

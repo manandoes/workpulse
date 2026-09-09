@@ -21,7 +21,7 @@ import { WorkloadBar } from "@/components/dashboard/workload-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Employee — AgencyOS" };
+export const metadata: Metadata = { title: "Employee — WorkPulse" };
 
 /**
  * Employee profile (PRD.md section 6.2).

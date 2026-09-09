@@ -119,8 +119,8 @@ export async function addProjectMember(
 
 export async function createTask(
   companyId: string,
-  projectId: string,
-  options: { assigneeId?: string } = {}
+  projectId: string | null,
+  options: { assigneeId?: string; createdById?: string } = {}
 ) {
   const suffix = uniqueSuffix();
   const task = await db.task.create({
@@ -129,6 +129,7 @@ export async function createTask(
       projectId,
       title: `Task ${suffix}`,
       assigneeId: options.assigneeId ?? null,
+      createdById: options.createdById ?? null,
     },
     select: { id: true },
   });

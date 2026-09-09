@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { scopedWhere } from "@/lib/tenant";
 import { RequestDetail } from "@/components/requests/request-detail";
 
-export const metadata: Metadata = { title: "Request — AgencyOS" };
+export const metadata: Metadata = { title: "Request — WorkPulse" };
 
 const requestDetailSelect = {
   id: true,

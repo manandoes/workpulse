@@ -3,7 +3,7 @@
 @import "shadcn/tailwind.css";
 
 /*
- * AgencyOS theme — implements Design.md § 3 (color), § 4 (type), § 5 (spacing/radius).
+ * WorkPulse theme — implements Design.md § 3 (color), § 4 (type), § 5 (spacing/radius).
  *
  * Two palettes are kept deliberately separate (Design.md § 3):
  *   - brand-*  → branding, CTAs, navigation, active states. Never signals status.

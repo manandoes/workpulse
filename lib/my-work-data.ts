@@ -30,7 +30,8 @@ export type MyWorkTask = {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: Date | null;
-  project: { id: string; name: string };
+  /** `null` for a standalone task — a quick personal to-do with no project. */
+  project: { id: string; name: string } | null;
 };
 
 export type MyWorkProject = {

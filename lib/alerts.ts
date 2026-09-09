@@ -69,7 +69,8 @@ export type OverdueTaskInput = {
   status: TaskStatus;
   dueDate: Date | string | null;
   assigneeId: string | null;
-  projectId: string;
+  /** `null` for a standalone task — the alert then carries no project. */
+  projectId: string | null;
 };
 
 /** One alert per overdue task — each is independently actionable. */
@@ -85,7 +86,7 @@ export function overdueTaskAlerts(
       message: `"${task.title}" is overdue.`,
       link: `/tasks/${task.id}`,
       employeeId: task.assigneeId ?? undefined,
-      projectId: task.projectId,
+      projectId: task.projectId ?? undefined,
     }));
 }
 

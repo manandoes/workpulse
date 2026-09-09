@@ -5,6 +5,7 @@ import {
   companyActor,
   createClient,
   createCompanyAccount,
+  createEmployee,
   createProject,
   createTestCompany,
   jsonRequest,
@@ -49,6 +50,53 @@ describe("POST /api/tasks", () => {
 
     const stored = await db.task.findUnique({ where: { id: body.task.id } });
     expect(stored?.companyId).toBe(companyId);
+  });
+
+  it("lets a Manager raise a standalone task with no project", async () => {
+    const { companyId } = await createTestCompany();
+    const managerId = await createCompanyAccount(companyId, "Manager");
+    vi.mocked(getActor).mockResolvedValue(
+      companyActor(companyId, managerId, "Manager")
+    );
+
+    const response = await POST(
+      jsonRequest("http://localhost/api/tasks", "POST", {
+        title: "Quick personal to-do",
+        projectId: "",
+      })
+    );
+
+    expect(response.status).toBe(201);
+    const body = await response.json();
+
+    const stored = await db.task.findUnique({ where: { id: body.task.id } });
+    expect(stored?.projectId).toBeNull();
+    expect(stored?.createdById).toBe(managerId);
+  });
+
+  it("auto-adds an off-team employee to the project when assigned its task", async () => {
+    const { companyId, ownerId } = await createTestCompany();
+    const clientId = await createClient(companyId);
+    const projectId = await createProject(companyId, clientId);
+    const employeeId = await createEmployee(companyId);
+    vi.mocked(getActor).mockResolvedValue(
+      companyActor(companyId, ownerId, "Owner")
+    );
+
+    const response = await POST(
+      jsonRequest("http://localhost/api/tasks", "POST", {
+        title: "Hand this to someone new",
+        projectId,
+        assigneeId: employeeId,
+      })
+    );
+
+    expect(response.status).toBe(201);
+
+    const membership = await db.projectMember.findUnique({
+      where: { projectId_employeeId: { projectId, employeeId } },
+    });
+    expect(membership).not.toBeNull();
   });
 
   it("refuses a Manager who does not lead the project", async () => {

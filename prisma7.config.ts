@@ -9,6 +9,11 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Prisma Migrate's schema engine needs a real, unpooled connection —
+    // it doesn't work through a transaction-mode pooler (see lib/db.ts and
+    // .env.example). DIRECT_URL is that connection; it falls back to
+    // DATABASE_URL so local dev against an unpooled Postgres (e.g. the
+    // docker-compose database) needs nothing extra set.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

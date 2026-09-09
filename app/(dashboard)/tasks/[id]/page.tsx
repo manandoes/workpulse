@@ -6,7 +6,7 @@ import { getActor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { scopedWhere } from "@/lib/tenant";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { isOverdue } from "@/lib/tasks";
+import { isOverdue, taskVisibilityFilter } from "@/lib/tasks";
 import { canManageTask, canViewTasks, isCompanyAdmin } from "@/lib/permissions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
@@ -21,7 +21,7 @@ import { DeleteTaskButton } from "@/components/tasks/delete-task-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Task — AgencyOS" };
+export const metadata: Metadata = { title: "Task — WorkPulse" };
 
 /**
  * Task detail (Phases.md Phase 5).
@@ -37,9 +37,11 @@ export default async function TaskPage({ params }: PageProps<"/tasks/[id]">) {
   const { id } = await params;
 
   const task = await db.task.findFirst({
-    // Tenant scoping (Rules.md section 2): an id from another company reads as
-    // "not found" rather than revealing that the record exists.
-    where: scopedWhere(actor, { id }),
+    // Tenant scoping (Rules.md section 2): an id from another company reads
+    // as "not found" rather than revealing that the record exists. A
+    // standalone task belonging to someone else reads the same way — it's
+    // personal to whoever raised it (`taskVisibilityFilter`).
+    where: scopedWhere(actor, { id, ...taskVisibilityFilter(actor) }),
     select: {
       id: true,
       title: true,
@@ -50,6 +52,7 @@ export default async function TaskPage({ params }: PageProps<"/tasks/[id]">) {
       estimatedHours: true,
       completedAt: true,
       createdAt: true,
+      createdById: true,
       assignee: { select: { id: true, fullName: true, jobRole: true } },
       createdBy: { select: { fullName: true } },
       project: {
@@ -104,21 +107,25 @@ export default async function TaskPage({ params }: PageProps<"/tasks/[id]">) {
       <PageHeader
         title={task.title}
         description={
-          <>
-            <Link
-              href={`/projects/${task.project.id}`}
-              className="underline-offset-4 hover:underline"
-            >
-              {task.project.name}
-            </Link>
-            {" · "}
-            <Link
-              href={`/projects/clients/${task.project.client.id}`}
-              className="underline-offset-4 hover:underline"
-            >
-              {task.project.client.name}
-            </Link>
-          </>
+          task.project ? (
+            <>
+              <Link
+                href={`/projects/${task.project.id}`}
+                className="underline-offset-4 hover:underline"
+              >
+                {task.project.name}
+              </Link>
+              {" · "}
+              <Link
+                href={`/projects/clients/${task.project.client.id}`}
+                className="underline-offset-4 hover:underline"
+              >
+                {task.project.client.name}
+              </Link>
+            </>
+          ) : (
+            "Personal task"
+          )
         }
         action={
           <div className="flex flex-wrap items-center gap-3">

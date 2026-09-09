@@ -68,11 +68,11 @@ export function inviteEmailBody({
   inviteUrl: string;
 }) {
   return {
-    subject: `Set up your ${companyName} account on AgencyOS`,
+    subject: `Set up your ${companyName} account on WorkPulse`,
     text: [
       `Hi ${employeeName},`,
       "",
-      `${companyName} has added you to AgencyOS. Use the link below to choose a password and sign in:`,
+      `${companyName} has added you to WorkPulse. Use the link below to choose a password and sign in:`,
       "",
       inviteUrl,
       "",
@@ -108,7 +108,7 @@ export function requestDecisionEmailBody({
       `Your request "${requestSubject}" has been ${status.toLowerCase()}.`,
       ...(decisionNote ? ["", `Note from the approver:`, decisionNote] : []),
       "",
-      "Sign in to AgencyOS to see the details.",
+      "Sign in to WorkPulse to see the details.",
     ].join("\n"),
   };
 }
@@ -125,11 +125,11 @@ export function accountInviteEmailBody({
   inviteUrl: string;
 }) {
   return {
-    subject: `Your ${role} account for ${companyName} on AgencyOS`,
+    subject: `Your ${role} account for ${companyName} on WorkPulse`,
     text: [
       `Hi ${name},`,
       "",
-      `${companyName} has given you a ${role} account on AgencyOS. Use the link below to choose a password and sign in:`,
+      `${companyName} has given you a ${role} account on WorkPulse. Use the link below to choose a password and sign in:`,
       "",
       inviteUrl,
       "",

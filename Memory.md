@@ -528,7 +528,7 @@
 - Implemented the full Design.md colour/type/spacing system as CSS variables in `app/globals.css`, mapped onto shadcn's semantic tokens so all future components inherit the theme with no per-component hardcoding. Brand and status palettes are declared as separate token groups per Design.md section 3.
 - Set Inter as the single typeface (Design.md section 4), replacing the scaffold's Geist.
 - Overrode shadcn `button` variants to match Design.md section 6 exactly.
-- Set up PostgreSQL 17 locally via a new `docker-compose.yml`; container `agencyos-postgres` is healthy on port 5432.
+- Set up PostgreSQL 17 locally via a new `docker-compose.yml`; container `workpulse-postgres` is healthy on port 5432.
 - Wired Prisma: `prisma/schema.prisma` (datasource + generator, models deferred to their phases), `prisma7.config.ts`, and `lib/db.ts` (client singleton using the pg driver adapter).
 - Created the full folder structure from Architecture.md section 5.
 - Configured ESLint (+ eslint-config-prettier, `no-explicit-any` as error per Rules.md section 1), Prettier (+ tailwind plugin), and Vitest.

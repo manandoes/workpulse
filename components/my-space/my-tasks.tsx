@@ -85,7 +85,7 @@ function TaskGroup({
                 </div>
 
                 <p className="text-text-secondary text-meta">
-                  {task.project.name}
+                  {task.project?.name ?? "Personal task"}
                   {task.dueDate
                     ? ` · due ${formatDate(task.dueDate)}`
                     : " · no due date"}

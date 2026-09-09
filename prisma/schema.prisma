@@ -1,4 +1,4 @@
-// AgencyOS Prisma schema.
+// WorkPulse Prisma schema.
 //
 // Data model reference: Architecture.md section 4.
 // Multi-tenancy rule (Rules.md section 2): every company-scoped model carries a
@@ -516,20 +516,24 @@ model ProjectMember {
   @@index([employeeId])
 }
 
-/// A unit of work on a project (Architecture.md section 4, PRD.md section 6.3).
+/// A unit of work, optionally on a project (Architecture.md section 4,
+/// PRD.md section 6.3).
 ///
-/// Every task belongs to a project, because a project is what gives a task a
-/// client, a budget and a team. The assignee is an `Employee` and never a
-/// `CompanyAccount`: company accounts run the work, employees do it, which is
-/// the split Architecture.md section 4 draws.
+/// A task usually belongs to a project, which is what gives it a client, a
+/// budget and a team. `projectId` is nullable so a task can also be a quick,
+/// personal to-do with none of that — `lib/permissions.ts`'s `canManageTask`
+/// treats a project-less task as personal to whoever raised it (`createdBy`)
+/// rather than governed by a project lead. The assignee is an `Employee` and
+/// never a `CompanyAccount`: company accounts run the work, employees do it,
+/// which is the split Architecture.md section 4 draws.
 model Task {
   id String @id @default(cuid())
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id])
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   title       String
   description String?

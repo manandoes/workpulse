@@ -189,10 +189,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 /**
  * The signed-in caller, or null. Returns a plain `SessionActor` so callers
  * cannot accidentally depend on NextAuth internals.
+ *
+ * The session is a JWT, so it can outlive the company it points to (e.g. a
+ * dev database reset/reseed, or the company being deleted). Treat that as
+ * "not signed in" rather than letting every `companyId`-scoped query 500 with
+ * `findUniqueOrThrow`.
  */
 export async function getActor(): Promise<SessionActor | null> {
   const session = await auth();
   if (!session?.user?.companyId) return null;
+
+  const company = await db.company.findFirst({
+    where: { id: session.user.companyId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!company) return null;
 
   return {
     id: session.user.id,

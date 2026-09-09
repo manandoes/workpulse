@@ -2,7 +2,7 @@
 
 ## 1. Product Name
 
-**AgencyOS** (working title) — Agency Operations & Employee Management Platform
+**WorkPulse** (working title) — Agency Operations & Employee Management Platform
 
 ## 2. One-Line Pitch
 

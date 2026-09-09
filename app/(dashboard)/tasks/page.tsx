@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { scopedWhere } from "@/lib/tenant";
 import {
   taskFilter,
+  taskVisibilityFilter,
   TASK_ORDER,
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -27,7 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
 
-export const metadata: Metadata = { title: "Tasks — AgencyOS" };
+export const metadata: Metadata = { title: "Tasks — WorkPulse" };
 
 /**
  * Task board and list (Phases.md Phase 5).
@@ -53,7 +54,9 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
   const { page: requestedPage } = paginationSchema.parse(query);
   const now = new Date();
 
-  const where = scopedWhere(actor, taskFilter(filters, now));
+  const where = scopedWhere(actor, {
+    AND: [taskFilter(filters, now), taskVisibilityFilter(actor)],
+  });
 
   const [projects, assignees, total] = await Promise.all([
     loadTaskProjects(actor),
@@ -78,6 +81,7 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
       status: true,
       priority: true,
       dueDate: true,
+      createdById: true,
       assignee: { select: { id: true, fullName: true } },
       project: { select: { id: true, name: true, leadAccountId: true } },
     },
@@ -86,15 +90,18 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
   });
 
   /**
-   * A task is governed by its project, so a Manager can move the cards on the
-   * boards they lead and only read the rest. Decided per row rather than once
-   * per page, because one board can show several projects.
+   * A project task is governed by its project, so a Manager can move the
+   * cards on the boards they lead and only read the rest; a standalone task
+   * is personal to whoever raised it. Decided per row rather than once per
+   * page, because one board can show several projects (and `taskVisibilityFilter`
+   * already keeps someone else's standalone tasks off this page entirely).
    */
-  const canManage = (task: { project: { leadAccountId: string | null } }) =>
-    canManageTask(actor, task);
+  const canManage = (task: {
+    project: { leadAccountId: string | null } | null;
+    createdById: string | null;
+  }) => canManageTask(actor, task);
 
   const isFiltered = Object.values(filters).some(Boolean);
-  const mayCreateSomething = projects.length > 0;
 
   return (
     <>
@@ -102,14 +109,12 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
         title="Tasks"
         description="Every piece of work across your projects — what stage it is at, who has it, and what has slipped."
         action={
-          mayCreateSomething ? (
-            <Button asChild>
-              <Link href="/tasks/new">
-                <ListPlus aria-hidden />
-                New task
-              </Link>
-            </Button>
-          ) : undefined
+          <Button asChild>
+            <Link href="/tasks/new">
+              <ListPlus aria-hidden />
+              New task
+            </Link>
+          </Button>
         }
       />
 
@@ -177,20 +182,10 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
         ) : (
           <EmptyState
             title="No tasks yet"
-            description={
-              mayCreateSomething
-                ? "Break a project into tasks, give them owners and deadlines, and the board fills itself in."
-                : "Tasks belong to a project, so create a project first and then break it into tasks."
-            }
+            description="Break a project into tasks, or raise a quick personal one — either way, give it an owner and a deadline and the board fills itself in."
             action={
               <Button asChild>
-                <Link
-                  href={mayCreateSomething ? "/tasks/new" : "/projects/new"}
-                >
-                  {mayCreateSomething
-                    ? "Create your first task"
-                    : "Create a project"}
-                </Link>
+                <Link href="/tasks/new">Create your first task</Link>
               </Button>
             }
           />

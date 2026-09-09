@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ListPlus } from "lucide-react";
 import { getActor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -9,12 +11,14 @@ import {
 } from "@/lib/alert-data";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { performanceBandLabel } from "@/lib/performance";
+import { canViewTasks } from "@/lib/permissions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { MetricTile } from "@/components/dashboard/metric-tile";
 import { WorkloadHeatmap } from "@/components/dashboard/workload-heatmap";
 import { AlertsPanel } from "@/components/dashboard/alerts-panel";
+import { Button } from "@/components/ui/button";
 
-export const metadata: Metadata = { title: "Dashboard — AgencyOS" };
+export const metadata: Metadata = { title: "Dashboard — WorkPulse" };
 
 /**
  * Role-aware company dashboard (Phases.md Phase 9 — "Admin/Owner sees one
@@ -68,7 +72,20 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title={intro.title} description={intro.description} />
+      <PageHeader
+        title={intro.title}
+        description={intro.description}
+        action={
+          canViewTasks(actor) ? (
+            <Button asChild>
+              <Link href="/tasks/new">
+                <ListPlus aria-hidden />
+                New task
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <MetricTile

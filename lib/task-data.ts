@@ -72,7 +72,11 @@ export const unknownProject = () =>
 
 type TaskInput = {
   title: string;
-  projectId: string;
+  /**
+   * Not read here — the caller already resolved it to `project` below.
+   * Present only because it's part of the schema the route parses.
+   */
+  projectId?: string;
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
@@ -83,7 +87,7 @@ type TaskInput = {
 
 export type TaskWriteData = {
   title: string;
-  projectId: string;
+  projectId: string | null;
   description?: string | null;
   status?: TaskStatus;
   priority?: TaskPriority;
@@ -100,18 +104,21 @@ export type TaskWriteResolution =
  * Resolve a create or an edit against the database.
  *
  * `project` has already been loaded through the tenant filter and authorised by
- * the caller. `current` is the task being edited, and is absent when creating —
- * it is what lets a finished task keep its original completion date through an
- * unrelated save.
+ * the caller, or is `null` for a standalone task. `current` is the task being
+ * edited, and is absent when creating — it is what lets a finished task keep
+ * its original completion date through an unrelated save.
  */
 export async function resolveTaskWrite(
   actor: SessionActor,
   input: TaskInput,
-  project: TaskProject,
+  project: TaskProject | null,
   current?: { status: TaskStatus; completedAt: Date | null },
   now: Date = new Date()
 ): Promise<TaskWriteResolution> {
-  const data: TaskWriteData = { title: input.title, projectId: project.id };
+  const data: TaskWriteData = {
+    title: input.title,
+    projectId: project ? project.id : null,
+  };
 
   if (input.description !== undefined) {
     data.description = text(input.description);
@@ -140,15 +147,7 @@ export async function resolveTaskWrite(
     } else {
       const employee = await db.employee.findFirst({
         where: scopedWhere(actor, { id: assigneeId }),
-        select: {
-          id: true,
-          fullName: true,
-          status: true,
-          projectMemberships: {
-            where: { projectId: project.id },
-            select: { id: true },
-          },
-        },
+        select: { id: true, fullName: true, status: true },
       });
 
       if (!employee) {
@@ -166,21 +165,32 @@ export async function resolveTaskWrite(
       }
 
       /**
-       * Work only goes to somebody on the project's team.
-       *
-       * Phase 4 made the team the record of who delivers a project. A task
-       * pointing outside it would make that record decorative, and would put
-       * hours into Phase 6's workload for someone the project does not know
-       * about. The message says how to fix it rather than only refusing.
+       * A standalone task has no team to belong to, so any active employee
+       * can take it. A project task's assignee is the project's team — but
+       * rather than refusing someone who isn't on it yet, picking them adds
+       * them to the team in the same step: assigning the work and staffing
+       * the project are one action, not two.
        */
-      if (employee.projectMemberships.length === 0) {
-        return {
-          ok: false,
-          status: 400,
-          code: "not_on_team",
-          field: "assigneeId",
-          message: `${employee.fullName} is not on the ${project.name} team. Add them to the team first.`,
-        };
+      if (project) {
+        const onTeam = await db.projectMember.findUnique({
+          where: {
+            projectId_employeeId: {
+              projectId: project.id,
+              employeeId: employee.id,
+            },
+          },
+          select: { id: true },
+        });
+
+        if (!onTeam) {
+          await db.projectMember.create({
+            data: {
+              companyId: actor.companyId,
+              projectId: project.id,
+              employeeId: employee.id,
+            },
+          });
+        }
       }
 
       data.assigneeId = employee.id;
@@ -325,6 +335,30 @@ export async function loadAssigneesByProject(
 }
 
 /**
+ * Every active employee in the company, for the standalone-task assignee
+ * picker and the "someone else" group offered alongside a project task's own
+ * team (`resolveTaskWrite` adds them to the project's team if picked there).
+ */
+export async function loadCompanyEmployeeOptions(
+  actor: SessionActor
+): Promise<SelectOption[]> {
+  const employees = await db.employee.findMany({
+    where: scopedWhere(actor),
+    orderBy: { fullName: "asc" },
+    select: { id: true, fullName: true, jobRole: true, status: true },
+  });
+
+  return employees
+    .filter((employee) => canJoinTeam(employee.status))
+    .map((employee) => ({
+      value: employee.id,
+      label: employee.jobRole
+        ? `${employee.fullName} — ${employee.jobRole}`
+        : employee.fullName,
+    }));
+}
+
+/**
  * Everyone who could appear in the assignee filter.
  *
  * Only people who actually hold a task, so the filter lists what is there to
@@ -361,7 +395,9 @@ export type LoadedTask = {
   completedAt: Date | null;
   /** Phases.md Phase 6 — whose workload a write to this task can change. */
   assigneeId: string | null;
-  project: TaskProject;
+  /** Who raised it — what `canManageTask` checks for a standalone task. */
+  createdById: string | null;
+  project: TaskProject | null;
 };
 
 export function findTask(
@@ -376,6 +412,7 @@ export function findTask(
       status: true,
       completedAt: true,
       assigneeId: true,
+      createdById: true,
       project: { select: { id: true, name: true, leadAccountId: true } },
     },
   });

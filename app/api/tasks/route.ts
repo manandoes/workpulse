@@ -11,7 +11,7 @@ import {
 import { getActor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { scopedWhere } from "@/lib/tenant";
-import { taskFilter, TASK_ORDER } from "@/lib/tasks";
+import { taskFilter, taskVisibilityFilter, TASK_ORDER } from "@/lib/tasks";
 import {
   findTaskProject,
   resolveTaskWrite,
@@ -40,8 +40,11 @@ export async function GET(request: NextRequest) {
   try {
     const tasks = await db.task.findMany({
       // Tenant scoping (Rules.md section 2) — applied last, so a filter can
-      // never widen the query beyond the caller's own company.
-      where: scopedWhere(actor, taskFilter(filters, new Date())),
+      // never widen the query beyond the caller's own company. A standalone
+      // task is additionally personal to its creator (`taskVisibilityFilter`).
+      where: scopedWhere(actor, {
+        AND: [taskFilter(filters, new Date()), taskVisibilityFilter(actor)],
+      }),
       orderBy: [...TASK_ORDER],
       select: {
         id: true,
@@ -89,15 +92,18 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return validationError(parsed.error);
 
   try {
-    const project = await findTaskProject(actor, parsed.data.projectId);
-    if (!project) return writeFailure(unknownProject());
+    const projectId = parsed.data.projectId?.trim() ?? "";
+    const project = projectId ? await findTaskProject(actor, projectId) : null;
+    if (projectId && !project) return writeFailure(unknownProject());
 
     /**
-     * A task inherits its project's ownership, so raising one is the same right
-     * as editing the project: any project for an Owner or Admin, and the ones
-     * they lead for a Manager.
+     * A task on a project inherits that project's ownership, so raising one
+     * is the same right as editing the project: any project for an Owner or
+     * Admin, and the ones they lead for a Manager. A standalone task has no
+     * project to inherit from — it's personal to whoever raises it, which
+     * `canManageTask` already grants to its own creator.
      */
-    if (!canManageTask(actor, { project })) {
+    if (!canManageTask(actor, { project, createdById: actor.id })) {
       return forbidden("You can only add tasks to projects you lead.");
     }
 

@@ -1,4 +1,4 @@
-# Local development services for AgencyOS.
+# Local development services for WorkPulse.
 # Production uses managed equivalents (see Architecture.md section 2).
 #
 #   docker compose up -d      start Postgres
@@ -7,18 +7,18 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: agencyos-postgres
+    container_name: workpulse-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: agencyos
-      POSTGRES_PASSWORD: agencyos
-      POSTGRES_DB: agencyos
+      POSTGRES_USER: workpulse
+      POSTGRES_PASSWORD: workpulse
+      POSTGRES_DB: workpulse
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agencyos -d agencyos"]
+      test: ["CMD-SHELL", "pg_isready -U workpulse -d workpulse"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -36,10 +36,12 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
 
   return (
     <div className="flex min-h-full flex-1">
-      {/* Design.md section 5: fixed 240px sidebar, brand-brown with cream text. */}
-      <aside className="bg-sidebar hidden w-60 shrink-0 flex-col justify-between p-4 md:flex">
+      {/* Design.md section 5: fixed 240px sidebar, brand-brown with cream text.
+          Sticky + h-screen keeps it pinned to the viewport height instead of
+          stretching (and scrolling away) with tall main content. */}
+      <aside className="bg-sidebar hidden w-60 shrink-0 flex-col justify-between p-4 md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
         <div className="flex flex-col gap-8">
-          <Link href={navigation[0].href} aria-label="AgencyOS home">
+          <Link href={navigation[0].href} aria-label="WorkPulse home">
             <BrandMark labelClassName="text-background" />
           </Link>
           <SidebarNav items={navigation} />

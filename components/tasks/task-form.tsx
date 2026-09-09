@@ -48,6 +48,7 @@ export function TaskForm({
   defaultValues,
   projects,
   assigneesByProject,
+  allEmployees,
   cancelHref,
 }: {
   mode: "create" | "edit";
@@ -56,6 +57,8 @@ export function TaskForm({
   projects: SelectOption[];
   /** Each project's team, keyed by project id. */
   assigneesByProject: Record<string, SelectOption[]>;
+  /** Every active employee in the company. */
+  allEmployees: SelectOption[];
   cancelHref: string;
 }) {
   const router = useRouter();
@@ -74,15 +77,20 @@ export function TaskForm({
   });
 
   /**
-   * A task can only go to somebody on its project's team, so the assignee list
-   * follows the chosen project. Watching it here keeps the picker honest
-   * without a round trip on every change.
+   * The assignee list follows the chosen project, so watching it here keeps
+   * the picker honest without a round trip on every change.
    *
    * `useWatch` rather than the form's `watch()`: it subscribes to this one
    * field, and it is the variant React Compiler can memoise.
    */
-  const projectId = useWatch({ control, name: "projectId" });
-  const assignees = assigneesByProject[projectId] ?? [];
+  const projectId = useWatch({ control, name: "projectId" }) ?? "";
+  const teamOptions = assigneesByProject[projectId] ?? [];
+  const teamIds = new Set(teamOptions.map((option) => option.value));
+  // Picking one of these on a project task adds them to its team on save
+  // (`resolveTaskWrite` in lib/task-data.ts) — assigning and staffing in one step.
+  const otherOptions = allEmployees.filter(
+    (option) => !teamIds.has(option.value)
+  );
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
@@ -112,13 +120,12 @@ export function TaskForm({
 
     if (mode === "edit" && body.stillManageable === false) {
       /**
-       * They moved the task to a project somebody else leads, and a Manager
-       * only manages the tasks on their own projects — better to say so here
-       * than to let them discover it through a refused save.
+       * They moved the task to a project somebody else leads, or detached it
+       * into a standalone task somebody else raised — either way they've just
+       * given away the right to manage it further. Better to say so here than
+       * to let them discover it through a refused save.
        */
-      toast.warning(
-        "Task moved. It now sits on a project you do not lead, so you can no longer edit it."
-      );
+      toast.warning("Task saved, but you can no longer manage it from here.");
       router.push("/tasks");
       router.refresh();
       return;
@@ -150,7 +157,8 @@ export function TaskForm({
         <SelectField
           id="projectId"
           label="Project"
-          placeholder="Choose a project"
+          placeholder="No project — personal task"
+          hint="Leave blank for a quick personal to-do, or file it under a project."
           options={projects}
           error={errors.projectId?.message}
           {...register("projectId", {
@@ -165,13 +173,28 @@ export function TaskForm({
           id="assigneeId"
           label="Assignee"
           placeholder="Unassigned"
-          options={assignees}
+          options={!projectId ? allEmployees : undefined}
+          groups={
+            projectId
+              ? [
+                  ...(teamOptions.length
+                    ? [{ label: "This project's team", options: teamOptions }]
+                    : []),
+                  ...(otherOptions.length
+                    ? [
+                        {
+                          label: "Other employees — added to the team on save",
+                          options: otherOptions,
+                        },
+                      ]
+                    : []),
+                ]
+              : undefined
+          }
           hint={
             !projectId
-              ? "Choose a project first."
-              : assignees.length === 0
-                ? "Nobody is on this project's team yet — add someone on the project page."
-                : "Only this project's team can be given its work."
+              ? "Any active employee can take a personal task."
+              : "Picking someone not yet on the team adds them to it."
           }
           error={errors.assigneeId?.message}
           {...register("assigneeId")}

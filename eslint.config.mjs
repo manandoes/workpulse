@@ -22,6 +22,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Prisma-generated client is not hand-written source.
     "lib/generated/**",
+    // Claude Code local tooling, not app source.
+    ".claude/**",
   ]),
 ]);
 

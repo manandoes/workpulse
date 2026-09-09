@@ -2,7 +2,7 @@ import type { DefaultSession } from "next-auth";
 import type { AccountType, AppRole } from "@/lib/permissions";
 
 /**
- * Session shape for AgencyOS.
+ * Session shape for WorkPulse.
  *
  * Every authenticated request carries the tenant (`companyId`), the role, and
  * which table the identity came from (`accountType`), so tenant scoping and

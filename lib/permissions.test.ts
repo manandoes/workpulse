@@ -497,6 +497,41 @@ describe("canManageTask", () => {
       )
     ).toBe(false);
   });
+
+  /**
+   * A standalone task has no project to be governed by, so it's personal to
+   * whoever raised it — deliberately with no Owner/Admin override, unlike a
+   * project task.
+   */
+  describe("a standalone task (no project)", () => {
+    it("lets its creator manage it, regardless of role", () => {
+      for (const role of ["Owner", "Admin", "Manager", "HR"] as const) {
+        expect(
+          canManageTask(companyActor(role), {
+            project: null,
+            createdById: "acct_1",
+          })
+        ).toBe(true);
+      }
+    });
+
+    it("does not let another company account manage it, even an Owner or Admin", () => {
+      for (const role of ["Owner", "Admin", "Manager"] as const) {
+        expect(
+          canManageTask(companyActor(role), {
+            project: null,
+            createdById: "acct_999",
+          })
+        ).toBe(false);
+      }
+    });
+
+    it("never allows an employee", () => {
+      expect(
+        canManageTask(employeeActor, { project: null, createdById: "emp_1" })
+      ).toBe(false);
+    });
+  });
 });
 
 describe("canUpdateTaskStatus", () => {

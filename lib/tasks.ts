@@ -197,6 +197,30 @@ export function taskFilter(filters: TaskFilters, now: Date) {
 }
 
 /**
+ * Who may see a given company's tasks, layered on top of `taskFilter` and the
+ * tenant scope.
+ *
+ * A task on a project stays visible to anyone the section already lets in
+ * (`canViewTasks`); a standalone task is personal — visible only to whoever
+ * raised it (a `CompanyAccount`, on `/tasks`) or, for an Employee actor, only
+ * to themself as its assignee (used by "My Work", which every Employee's own
+ * tasks flow through regardless of project).
+ */
+export function taskVisibilityFilter(actor: {
+  id: string;
+  accountType: "company" | "employee";
+}) {
+  return {
+    OR: [
+      { projectId: { not: null } },
+      actor.accountType === "employee"
+        ? { assigneeId: actor.id }
+        : { createdById: actor.id },
+    ],
+  };
+}
+
+/**
  * Board and list ordering: most urgent first, then by deadline, with undated
  * work last. Shared by every task query so the two views agree.
  */

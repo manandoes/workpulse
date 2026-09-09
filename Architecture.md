@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-AgencyOS is a multi-tenant SaaS web application. Each company (tenant) has isolated data. The app is composed of a frontend dashboard, a backend API, a relational database, and background jobs for computed metrics (workload %, performance scores, early-warning alerts).
+WorkPulse is a multi-tenant SaaS web application. Each company (tenant) has isolated data. The app is composed of a frontend dashboard, a backend API, a relational database, and background jobs for computed metrics (workload %, performance scores, early-warning alerts).
 
 ## 2. Tech Stack
 

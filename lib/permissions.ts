@@ -192,20 +192,33 @@ export function canViewTasks(actor: SessionActor): boolean {
   return isDeliveryRole(actor);
 }
 
-/** The part of a task the permission rules need: the project it belongs to. */
-export type TaskSubject = { project: ProjectSubject };
+/**
+ * The part of a task the permission rules need: the project it belongs to, or
+ * `null` for a standalone task, plus who raised it (only meaningful in the
+ * `null` case).
+ */
+export type TaskSubject = {
+  project: ProjectSubject | null;
+  createdById?: string | null;
+};
 
 /**
  * Who may create, edit, move or remove *this* task.
  *
- * A task is governed by its project, so this is deliberately the same rule as
- * `canManageProject` rather than a second one that could drift from it: Owner
- * and Admin may change any task in their company, and a Manager may change the
- * tasks on the projects they lead (PRD.md section 9 — "manage own team's
- * tasks, projects").
+ * A task on a project is governed by that project, so this is deliberately
+ * the same rule as `canManageProject` rather than a second one that could
+ * drift from it: Owner and Admin may change any task in their company, and a
+ * Manager may change the tasks on the projects they lead (PRD.md section 9 —
+ * "manage own team's tasks, projects").
+ *
+ * A standalone task has no project to be governed by, so it is personal to
+ * whoever raised it instead — deliberately with no Owner/Admin override,
+ * since the whole point of a project-less task is that it is a personal
+ * to-do, not scoped delivery work.
  */
 export function canManageTask(actor: SessionActor, task: TaskSubject): boolean {
-  return canManageProject(actor, task.project);
+  if (task.project) return canManageProject(actor, task.project);
+  return actor.accountType === "company" && task.createdById === actor.id;
 }
 
 /** The part of a task `canUpdateTaskStatus` needs beyond `canManageTask`'s. */

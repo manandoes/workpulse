@@ -4,9 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { RegisterCompanyForm } from "@/components/auth/register-company-form";
 
 export const metadata: Metadata = {
-  title: "Create a company account — AgencyOS",
+  title: "Create a company account — WorkPulse",
   description:
-    "Register your agency on AgencyOS and create your company workspace.",
+    "Register your agency on WorkPulse and create your company workspace.",
 };
 
 /**

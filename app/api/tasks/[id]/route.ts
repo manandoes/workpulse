@@ -62,20 +62,28 @@ export async function PATCH(
     }
 
     /**
-     * Moving a task to another project needs the right to write on *both*
+     * Moving a task onto another project needs the right to write on *both*
      * sides. Checking only the one it came from would let a Manager push work
-     * onto a team they do not run.
+     * onto a team they do not run. Moving it onto no project at all (or off
+     * one) needs no such check here — `stillManageable` below tells the
+     * caller if that move just cost them the right to manage it further, the
+     * same way it already does for a cross-project-lead move.
      */
     let project = task.project;
-    if (parsed.data.projectId !== task.project.id) {
-      const target = await findTaskProject(actor, parsed.data.projectId);
-      if (!target) return writeFailure(unknownProject());
+    const targetProjectId = parsed.data.projectId?.trim() ?? "";
+    if (targetProjectId !== (task.project?.id ?? "")) {
+      if (!targetProjectId) {
+        project = null;
+      } else {
+        const target = await findTaskProject(actor, targetProjectId);
+        if (!target) return writeFailure(unknownProject());
 
-      if (!canManageTask(actor, { project: target })) {
-        return forbidden("You can only move a task to a project you lead.");
+        if (!canManageTask(actor, { project: target })) {
+          return forbidden("You can only move a task to a project you lead.");
+        }
+
+        project = target;
       }
-
-      project = target;
     }
 
     const resolved = await resolveTaskWrite(actor, parsed.data, project, {
@@ -112,11 +120,15 @@ export async function PATCH(
     return NextResponse.json({
       task: updated,
       /**
-       * Handing a task to a project somebody else leads gives away the right to
-       * edit it. Better to say so here than to let a Manager find out through a
-       * refused save.
+       * Handing a task to a project somebody else leads — or detaching it
+       * into a standalone task somebody else raised — gives away the right to
+       * edit it. Better to say so here than to let a Manager find out through
+       * a refused save.
        */
-      stillManageable: canManageTask(actor, { project }),
+      stillManageable: canManageTask(actor, {
+        project,
+        createdById: task.createdById,
+      }),
     });
   } catch (cause) {
     return serverError(

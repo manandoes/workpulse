@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { hashInviteToken, isInviteExpired } from "@/lib/invites";
 
 export const metadata: Metadata = {
-  title: "Accept your invite — AgencyOS",
+  title: "Accept your invite — WorkPulse",
   description: "Set your password and join your company's workspace.",
 };
 
@@ -125,7 +125,8 @@ export default async function InvitePage({
             Welcome, {invite.firstName}
           </h1>
           <p className="text-text-secondary">
-            {invite.companyName} has added you to AgencyOS. Choose a password to
+            {invite.companyName} has added you to WorkPulse
+        . Choose a password to
             finish setting up your account.
           </p>
         </div>

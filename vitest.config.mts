@@ -24,13 +24,20 @@ export default defineConfig({
     include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: ["node_modules/**", ".next/**", "lib/generated/**"],
     /**
-     * Route-handler tests (Phases.md Phase 12) each construct their own
-     * `lib/db.ts` Prisma client/connection pool against the same pooled
-     * Postgres (Supabase's pgbouncer in this repo's `.env`). One worker per
-     * test file, unbounded, briefly opened enough simultaneous pools to time
-     * some queries out under the full suite. Capping worker count trades a
-     * little wall-clock time for not overwhelming a shared, pooled database.
+     * Route-handler tests (Phases.md Phase 12) hit the real `lib/db.ts`
+     * Prisma client/connection pool against the same pooled Postgres
+     * (Supabase's Supavisor, session mode, capped at 15 clients — see
+     * `.env`). `isolate` defaults to true, which resets the module registry
+     * per test file: that defeats `lib/db.ts`'s `globalForPrisma` singleton,
+     * so every file opened a brand-new `pg.Pool(max: 5)` that was never
+     * disposed. With `maxWorkers` files running concurrently that thrashed
+     * far past the pooler's 15-client cap (`EMAXCONNSESSION`). Disabling
+     * isolate lets the singleton persist for the life of a worker, so total
+     * connections are bounded by `maxWorkers * adapter.max` instead of
+     * `total test files * adapter.max`; capping workers at 2 keeps that
+     * bound (2 * 5 = 10) safely under the pooler's limit.
      */
-    maxWorkers: 4,
+    maxWorkers: 2,
+    isolate: false,
   },
 });

@@ -12,7 +12,7 @@ import { MarkAllReadButton } from "@/components/dashboard/mark-all-read-button";
 import { NotificationRow } from "@/components/dashboard/notification-row";
 import { Card } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Notifications — AgencyOS" };
+export const metadata: Metadata = { title: "Notifications — WorkPulse" };
 
 /**
  * The full notification history (Phases.md Phase 12 — notification

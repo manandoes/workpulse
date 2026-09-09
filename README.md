@@ -1,4 +1,4 @@
-# AgencyOS
+# WorkPulse
 
 An all-in-one operating dashboard for agencies that connects employees,
 projects, tasks, performance, expenses, and internal operations in one place.

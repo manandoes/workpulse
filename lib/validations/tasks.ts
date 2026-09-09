@@ -42,7 +42,8 @@ const optionalHours = z
 
 export const createTaskSchema = z.object({
   title: z.string().trim().min(3, "Give the task a title").max(160),
-  projectId: z.string().trim().min(1, "Choose a project"),
+  /** Empty means a standalone, project-less task. */
+  projectId: optionalText(40),
   description: optionalText(4000),
   status: z.enum(TASK_STATUSES).optional(),
   priority: z.enum(TASK_PRIORITIES).optional(),
