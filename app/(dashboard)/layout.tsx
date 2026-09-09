@@ -49,12 +49,15 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
 
         <div className="flex flex-col gap-3">
           <NotificationBell className="self-start" />
-          <div className="px-3">
+          <Link
+            href="/profile"
+            className="hover:bg-brand-brown-soft/40 rounded-lg px-3 py-1.5 transition-colors"
+          >
             <p className="text-background font-medium">{session.user.name}</p>
             <p className="text-brand-brown-light text-meta">
               {roleLabel} · {session.user.companyName}
             </p>
-          </div>
+          </Link>
           <SignOutButton />
         </div>
       </aside>
