@@ -11,6 +11,7 @@
 
 - **Light theme only for v1** (dark mode deferred to a later phase, but color tokens below are written as CSS variables so dark mode can be added later without a redesign).
 - Base is a warm off-white/cream background rather than stark white, to work with the brown/yellow brand palette.
+- **Two palettes, one token set.** The marketing site and auth pages (`app/(marketing)`, `app/(auth)`) use the palette in section 3 below. The authenticated dashboard (`app/(dashboard)`) uses a separate yellow/white/black theme — see "Dashboard Theme Override" at the end of section 3 — applied by a `.dashboard-theme` class on the dashboard shell's root element in `app/(dashboard)/layout.tsx` rather than by touching `:root`. Every token name is identical between the two; only the values differ per scope, so no component needs to know which palette it's rendering in.
 
 ## 3. Color Palette
 
@@ -54,6 +55,25 @@
 | 81–100%+ | `danger` (red)     |
 
 > Rule: brand yellow/brown is never reused to signal status (success/warning/danger). This avoids ambiguity between "this is a brand accent" and "this needs your attention."
+
+### Dashboard Theme Override
+
+The dashboard (`app/(dashboard)/**`) replaces the brand and base tokens above with a bold yellow/white/black identity, set in `app/globals.css` under the `.dashboard-theme` class rather than `:root`. The token *names* are unchanged — `brand-yellow`, `brand-brown`, `background`, `sidebar`, etc. — only the values differ, so this section only lists what's different from section 3 above. Status colors (`success`/`warning`/`danger`/`info` and their `-text` pairs) are untouched here: they stay out of the brand palette in both themes.
+
+| Token                | Hex       | Usage                                                                     |
+| --------------------- | --------- | -------------------------------------------------------------------------------- |
+| `brand-yellow`        | `#FFCC00` | Primary CTAs, active nav item (solid fill), chart accent                         |
+| `brand-yellow-hover`  | `#E6B800` | Hover state for yellow buttons/links                                             |
+| `brand-yellow-light`  | `#FFF3B0` | Highlight backgrounds, selected tab/row, nav hover                               |
+| `brand-brown`         | `#000000` | Repurposed, not renamed — this is still the "heading / primary text" slot, now literally black |
+| `brand-brown-soft`    | `#3F3F3F` | Secondary text, icons, muted labels                                              |
+| `brand-brown-light`   | `#E4E4E4` | Borders, dividers                                                                 |
+| `background`          | `#FFFFFF` | Page background                                                                   |
+| `surface`             | `#FFFFFF` | Cards, panels                                                                     |
+| `surface-muted`       | `#FAFAF6` | Secondary panels, table header background                                        |
+| `sidebar`             | `#FFFFFF` | Sidebar surface — white, same as the page. Yellow is reserved for the active nav item and accents rather than filling the whole rail, so a data-dense ops tool stays calm (section 1, "clarity over decoration") instead of reading as a wall of yellow. `border-r` (using `border`) separates it from `<main>` now that both are white. |
+
+Contrast re-verified for this palette specifically (WCAG relative-luminance formula, not spot-checked): black and `brand-brown-soft` both clear AA on white, `surface-muted` and `brand-yellow-light`; the existing darkened `success-text`/`warning-text`/`danger-text`/`info-text` pairs (section 10 explains why they exist) clear 4.5:1 against white, `surface-muted` and `brand-yellow-light` too (4.62–5.49:1) — they were never re-picked, just re-checked. They do **not** clear AA against solid `brand-yellow` (~3.4–3.6:1), so status badges/text stay on white or `surface-muted`, never painted directly on the raw yellow fill — which matches how they're already used (task/status badges sit on cards, not on the sidebar).
 
 ## 4. Typography
 

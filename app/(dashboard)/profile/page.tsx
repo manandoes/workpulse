@@ -4,9 +4,10 @@ import { getActor } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDate, humanizeEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { AvatarUpload } from "@/components/dashboard/avatar-upload";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "My Profile — WorkPulse" };
+export const metadata: Metadata = { title: "My Profile — Talking Lens Media" };
 
 /**
  * Self-service profile: the signed-in user's own personal details and their
@@ -28,6 +29,7 @@ export default async function ProfilePage() {
         fullName: true,
         workEmail: true,
         role: true,
+        avatarUrl: true,
         createdAt: true,
         invitedBy: { select: { fullName: true } },
         company: {
@@ -51,6 +53,10 @@ export default async function ProfilePage() {
           title="My Profile"
           description={`${account.role} · ${account.company.name}`}
         />
+
+        <div className="mb-6">
+          <AvatarUpload name={account.fullName} avatarUrl={account.avatarUrl} />
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Panel title="Personal">
@@ -85,6 +91,7 @@ export default async function ProfilePage() {
       fullName: true,
       companyEmail: true,
       employeeCode: true,
+      avatarUrl: true,
       jobRole: true,
       employmentType: true,
       startDate: true,
@@ -131,6 +138,10 @@ export default async function ProfilePage() {
           employee.company.name
         }
       />
+
+      <div className="mb-6">
+        <AvatarUpload name={employee.fullName} avatarUrl={employee.avatarUrl} />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title="Personal">

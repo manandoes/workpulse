@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { hashInviteToken, isInviteExpired } from "@/lib/invites";
 
 export const metadata: Metadata = {
-  title: "Accept your invite — WorkPulse",
+  title: "Accept your invite — Talking Lens Media",
   description: "Set your password and join your company's workspace.",
 };
 
@@ -125,7 +125,7 @@ export default async function InvitePage({
             Welcome, {invite.firstName}
           </h1>
           <p className="text-text-secondary">
-            {invite.companyName} has added you to WorkPulse
+            {invite.companyName} has added you to Talking Lens Media
         . Choose a password to
             finish setting up your account.
           </p>

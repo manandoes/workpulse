@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { TaskForm } from "@/components/tasks/task-form";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "New task — WorkPulse" };
+export const metadata: Metadata = { title: "New task — Talking Lens Media" };
 
 /**
  * Raise a task (Phases.md Phase 5) — on a project, or standalone as a quick

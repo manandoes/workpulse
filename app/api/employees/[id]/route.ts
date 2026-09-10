@@ -11,7 +11,11 @@ import { getActor } from "@/lib/auth";
 import { scopedWhere } from "@/lib/tenant";
 import { db } from "@/lib/db";
 import { resolveEmployeeWrite } from "@/lib/employee-data";
-import { canEditEmployee, canViewPersonalDetails } from "@/lib/permissions";
+import {
+  canEditEmployee,
+  canManageEmployees,
+  canViewPersonalDetails,
+} from "@/lib/permissions";
 import { updateEmployeeSchema } from "@/lib/validations/employees";
 
 /**
@@ -87,6 +91,60 @@ export async function PATCH(
     return serverError(
       {
         route: "PATCH /api/employees/[id]",
+        companyId: actor.companyId,
+        actorId: actor.id,
+      },
+      cause
+    );
+  }
+}
+
+/**
+ * DELETE /api/employees/[id] — remove an employee from the directory.
+ *
+ * Rules.md section 6: never hard-delete a record referenced by tasks,
+ * requests and performance history — this sets `deletedAt` instead, exactly
+ * like the status route's suspend/reactivate. `scopedWhere` already excludes
+ * `deletedAt` rows from every company-scoped query, so the employee
+ * disappears from the directory, org chart and every list immediately while
+ * their history stays intact.
+ *
+ * Gated by `canManageEmployees` rather than `canEditEmployee`: removing
+ * someone from the directory is a directory-management action like
+ * suspension, not a profile edit a Manager should be able to do to their own
+ * reports.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  context: RouteContext<"/api/employees/[id]">
+) {
+  const actor = await getActor();
+  if (!actor) return unauthorized();
+
+  if (!canManageEmployees(actor)) {
+    return forbidden("Only owners, admins and HR can remove an employee.");
+  }
+
+  const { id } = await context.params;
+
+  try {
+    const employee = await db.employee.findFirst({
+      where: scopedWhere(actor, { id }),
+      select: { id: true },
+    });
+
+    if (!employee) return apiError("Employee not found.", 404, "not_found");
+
+    await db.employee.update({
+      where: { id: employee.id },
+      data: { deletedAt: new Date() },
+    });
+
+    return new NextResponse(null, { status: 204 });
+  } catch (cause) {
+    return serverError(
+      {
+        route: "DELETE /api/employees/[id]",
         companyId: actor.companyId,
         actorId: actor.id,
       },

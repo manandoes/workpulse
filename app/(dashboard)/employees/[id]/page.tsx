@@ -16,12 +16,13 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmployeeStatusBadge } from "@/components/employees/status-badge";
 import { EmployeeStatusActions } from "@/components/employees/employee-status-actions";
+import { EmployeeDeleteButton } from "@/components/employees/employee-delete-button";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { WorkloadBar } from "@/components/dashboard/workload-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Employee — WorkPulse" };
+export const metadata: Metadata = { title: "Employee — Talking Lens Media" };
 
 /**
  * Employee profile (PRD.md section 6.2).
@@ -142,6 +143,12 @@ export default async function EmployeeProfilePage({
               <EmployeeStatusActions
                 employeeId={employee.id}
                 status={employee.status}
+                fullName={employee.fullName}
+              />
+            ) : null}
+            {mayChangeStatus ? (
+              <EmployeeDeleteButton
+                employeeId={employee.id}
                 fullName={employee.fullName}
               />
             ) : null}

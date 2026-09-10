@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { PagePlaceholder } from "@/components/marketing/page-placeholder";
 
 export const metadata: Metadata = {
-  title: "Contact — WorkPulse",
-  description: "Get in touch with the WorkPulse team.",
+  title: "Contact — Talking Lens Media",
+  description: "Get in touch with the Talking Lens Media team.",
 };
 
 export default function ContactPage() {

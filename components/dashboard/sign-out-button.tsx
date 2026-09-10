@@ -8,7 +8,7 @@ export function SignOutButton() {
   return (
     <Button
       variant="ghost"
-      className="text-brand-brown-light hover:bg-brand-brown-soft/40 hover:text-background w-full justify-start gap-3 px-3"
+      className="text-brand-brown-soft hover:bg-brand-yellow-light hover:text-foreground w-full justify-start gap-3 px-3"
       onClick={() => signOut({ redirectTo: "/login" })}
     >
       <LogOut aria-hidden className="size-5 shrink-0" strokeWidth={1.5} />

@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "WorkPulse — Agency Operations & Employee Management",
+  title: "Talking Lens Media — Agency Operations & Employee Management",
   description:
     "An all-in-one operating dashboard for agencies that connects employees, projects, tasks, performance, expenses, and internal operations in one place.",
 };

@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { WorkloadSettingsForm } from "@/components/dashboard/workload-settings-form";
 import { AlertSettingsForm } from "@/components/dashboard/alert-settings-form";
 
-export const metadata: Metadata = { title: "Settings — WorkPulse" };
+export const metadata: Metadata = { title: "Settings — Talking Lens Media" };
 
 /**
  * Company settings: the weekly capacity hours workload is measured against

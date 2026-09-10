@@ -13,7 +13,7 @@ import { ScoreHistoryChart } from "@/components/performance/score-history-chart"
 import { GoalList } from "@/components/performance/goal-views";
 import { FeedbackList } from "@/components/performance/feedback-views";
 
-export const metadata: Metadata = { title: "My Growth — WorkPulse" };
+export const metadata: Metadata = { title: "My Growth — Talking Lens Media" };
 
 /**
  * An employee's own performance page (PRD.md section 6.9 — "My Growth":

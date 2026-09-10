@@ -20,7 +20,7 @@ import { GoalForm } from "@/components/performance/goal-form";
 import { FeedbackList } from "@/components/performance/feedback-views";
 import { FeedbackForm } from "@/components/performance/feedback-form";
 
-export const metadata: Metadata = { title: "Performance — WorkPulse" };
+export const metadata: Metadata = { title: "Performance — Talking Lens Media" };
 
 /**
  * One employee's performance page (Phases.md Phase 8): score history,

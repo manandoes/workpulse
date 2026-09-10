@@ -182,6 +182,73 @@
   --radius: 12px;
 }
 
+/*
+ * Dashboard theme override (Design.md § 2 "Dashboard theme") — yellow, white
+ * and black, scoped to the authenticated app shell only. Applied as a class
+ * on the dashboard's root element (`app/(dashboard)/layout.tsx`) rather than
+ * on `:root`, so the marketing site keeps its own warm cream/brown identity.
+ *
+ * Every Tailwind utility here (`bg-brand-yellow`, `text-brand-brown`,
+ * `bg-sidebar`, …) already resolves through a `--color-*` variable in the
+ * `@theme inline` block above, which in turn points at the plain custom
+ * property redefined here — the same mechanism this file's own comments
+ * describe for a future dark theme. Redefining the values is enough; no
+ * component needs to change to pick this up.
+ */
+.dashboard-theme {
+  --brand-yellow: #ffcc00;
+  --brand-yellow-hover: #e6b800;
+  --brand-yellow-light: #fff3b0;
+  /* `brand-brown` is the app's "heading / primary text" slot, not literally
+     brown — repurposed here to black rather than renamed, so every existing
+     `text-brand-brown` call site (headings, active states, card titles)
+     becomes black for free. */
+  --brand-brown: #000000;
+  --brand-brown-soft: #3f3f3f;
+  --brand-brown-light: #e4e4e4;
+
+  --background: #ffffff;
+  --foreground: #000000;
+  --surface: #ffffff;
+  --surface-muted: #fafaf6;
+
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand-yellow);
+  --primary-foreground: var(--brand-brown);
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--brand-brown);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--brand-brown-soft);
+  --accent: var(--brand-yellow-light);
+  --accent-foreground: var(--brand-brown);
+  --border: var(--brand-brown-light);
+  --input: var(--brand-brown-light);
+  --ring: var(--brand-yellow);
+
+  /* success/warning/danger/info and their darkened -text pairs are
+     deliberately left untouched — Rules.md/Design.md § 3 keeps status color
+     out of the brand palette, and both pairs still clear AA 4.5:1 against
+     every surface above (re-verified against white, surface-muted and
+     brand-yellow-light for this palette). */
+  --chart-1: var(--brand-yellow);
+
+  /* Sidebar: white, same as the page, with yellow reserved for the active
+     item and brand accents rather than as its own surface — keeps a
+     data-dense ops tool calm (Design.md § 1 "clarity over decoration")
+     instead of a wall of yellow, while still reading as bold and on-brand. */
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand-yellow);
+  --sidebar-primary-foreground: var(--foreground);
+  --sidebar-accent: var(--brand-yellow-light);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--brand-yellow);
+}
+
 @layer base {
   * {
     @apply border-border;

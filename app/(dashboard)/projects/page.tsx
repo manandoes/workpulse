@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Projects — WorkPulse" };
+export const metadata: Metadata = { title: "Projects — Talking Lens Media" };
 
 /**
  * Project list (Phases.md Phase 4).

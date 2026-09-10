@@ -202,6 +202,11 @@ model CompanyAccount {
   fullName  String
   workEmail String
 
+  /// Profile photo as a data URL, resized and compressed client-side before
+  /// upload (`app/api/profile/avatar/route.ts`). No object storage exists in
+  /// this project yet, so a text column is the simplest complete home for it.
+  avatarUrl String? @db.Text
+
   /// Null until the account holder accepts their invite and sets a password.
   /// The first Owner is created by registration and therefore always has one;
   /// Admin / Manager / HR accounts are invited (Architecture.md section 4).
@@ -297,6 +302,11 @@ model Employee {
   employeeCode String
   fullName     String
   companyEmail String
+
+  /// Profile photo as a data URL, resized and compressed client-side before
+  /// upload (`app/api/profile/avatar/route.ts`). No object storage exists in
+  /// this project yet, so a text column is the simplest complete home for it.
+  avatarUrl String? @db.Text
 
   /// Null until the employee accepts their invite and sets a password.
   passwordHash String?

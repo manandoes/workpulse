@@ -18,7 +18,7 @@ import { WorkloadHeatmap } from "@/components/dashboard/workload-heatmap";
 import { AlertsPanel } from "@/components/dashboard/alerts-panel";
 import { Button } from "@/components/ui/button";
 
-export const metadata: Metadata = { title: "Dashboard — WorkPulse" };
+export const metadata: Metadata = { title: "Dashboard — Talking Lens Media" };
 
 /**
  * Role-aware company dashboard (Phases.md Phase 9 — "Admin/Owner sees one

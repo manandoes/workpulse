@@ -2,7 +2,7 @@
 
 ## 1. Product Name
 
-**WorkPulse** (working title) — Agency Operations & Employee Management Platform
+**Talking Lens Media** (working title) — Agency Operations & Employee Management Platform
 
 ## 2. One-Line Pitch
 

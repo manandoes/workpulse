@@ -21,7 +21,7 @@ import { DeleteTaskButton } from "@/components/tasks/delete-task-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Task — WorkPulse" };
+export const metadata: Metadata = { title: "Task — Talking Lens Media" };
 
 /**
  * Task detail (Phases.md Phase 5).

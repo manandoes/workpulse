@@ -50,8 +50,8 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 transition-colors",
               isActive
-                ? "bg-brand-yellow-light text-brand-brown font-medium"
-                : "text-brand-brown-light hover:bg-brand-brown-soft/40 hover:text-background"
+                ? "bg-brand-yellow text-foreground font-medium"
+                : "text-brand-brown-soft hover:bg-brand-yellow-light hover:text-foreground"
             )}
           >
             <Icon aria-hidden className="size-5 shrink-0" strokeWidth={1.5} />
